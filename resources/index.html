@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DGX Transfer</title>
+  <link rel="stylesheet" href="/styles.css?v=6">
+</head>
+
+<body>
+
+  <header id="header">
+    <div class="header-top">
+      <div class="logo">⚡ DGX Transfer</div>
+      <div class="flex-spacer"></div>
+      <select class="lang-select" id="langSelect">
+        <option value="en">EN</option>
+        <option value="ko">한국어</option>
+      </select>
+    </div>
+    <div class="header-bottom">
+      <div class="server-bar">
+        <div class="conn-dot" id="dotA"></div>
+        <select class="server-select" id="selectA">
+          <option value="" data-i18n="sel.serverSelect">-- Select server --</option>
+        </select>
+        <button class="btn-icon" id="btnEditA" data-i18n-title="header.editServer" title="Edit server" disabled>⚙</button>
+        <button class="btn-icon" id="btnAddServer" data-i18n-title="header.addServer" title="Add server">＋</button>
+      </div>
+      <div class="transfer-center">
+        <button class="btn-transfer" id="btnAtoB" data-i18n-title="header.transferAtoB" title="Transfer A → B" disabled>→</button>
+        <button class="btn-transfer" id="btnBtoA" data-i18n-title="header.transferBtoA" title="Transfer B → A" disabled>←</button>
+      </div>
+      <div class="server-bar">
+        <div class="conn-dot" id="dotB"></div>
+        <select class="server-select" id="selectB">
+          <option value="" data-i18n="sel.serverSelect">-- Select server --</option>
+        </select>
+        <button class="btn-icon" id="btnEditB" data-i18n-title="header.editServer" title="Edit server" disabled>⚙</button>
+        <div class="server-bar-right-pad"></div>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="file-panel">
+      <div class="panel-toolbar">
+        <button class="btn-icon" id="btnUpA" data-i18n-title="panel.parentDir" title="Parent directory" disabled>↑</button>
+        <input type="text" class="path-input" id="pathA" data-i18n-placeholder="panel.pathPlaceholder" placeholder="Path...">
+        <button class="btn-icon" id="btnRefreshA" data-i18n-title="panel.refresh" title="Refresh" disabled>↻</button>
+      </div>
+      <div class="list-header">
+        <input type="checkbox" id="chkAllA" data-i18n-title="panel.selectAll" title="Select all">
+        <span data-i18n="panel.name">Name</span><span data-i18n="panel.size">Size</span><span data-i18n="panel.modified">Modified</span>
+      </div>
+      <div class="list-body" id="listA">
+        <div class="panel-state">
+          <div class="state-icon">🖥</div>
+          <div class="state-msg" data-i18n="panel.selectServer">Select a server above</div>
+        </div>
+      </div>
+    </div>
+    <div class="file-panel">
+      <div class="panel-toolbar">
+        <button class="btn-icon" id="btnUpB" data-i18n-title="panel.parentDir" title="Parent directory" disabled>↑</button>
+        <input type="text" class="path-input" id="pathB" data-i18n-placeholder="panel.pathPlaceholder" placeholder="Path...">
+        <button class="btn-icon" id="btnRefreshB" data-i18n-title="panel.refresh" title="Refresh" disabled>↻</button>
+      </div>
+      <div class="list-header">
+        <input type="checkbox" id="chkAllB" data-i18n-title="panel.selectAll" title="Select all">
+        <span data-i18n="panel.name">Name</span><span data-i18n="panel.size">Size</span><span data-i18n="panel.modified">Modified</span>
+      </div>
+      <div class="list-body" id="listB">
+        <div class="panel-state">
+          <div class="state-icon">🖥</div>
+          <div class="state-msg" data-i18n="panel.selectServer">Select a server above</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="progressSection">
+    <div class="progress-meta">
+      <div class="progress-title" id="progressTitle" data-i18n="progress.transferring">Transferring...</div>
+      <div class="progress-stats">
+        <span id="progressPct">0%</span>
+        <span id="progressSpeed">-- B/s</span>
+        <span id="progressEta">ETA: --</span>
+        <button class="btn btn-danger" id="btnCancel" style="padding:3px 10px;font-size:11px;height:22px;" data-i18n="progress.cancel">Cancel</button>
+      </div>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+
+  <div id="statusBar">
+    <span class="status-text" id="statusText" data-i18n="status.ready">Ready</span>
+    <span class="selection-info" id="selInfo"></span>
+  </div>
+
+  <!-- SERVER MODAL -->
+  <div class="modal-overlay" id="serverModal">
+    <div class="modal-box">
+      <div class="modal-title" id="modalTitle" data-i18n="modal.addServer">Add Server</div>
+
+      <div class="form-group">
+        <div class="form-label" data-i18n="modal.alias">Alias</div>
+        <input type="text" class="form-input" id="fAlias" data-i18n-placeholder="modal.aliasPlaceholder" placeholder="e.g. DGX-Spark-A" autocomplete="off">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label" data-i18n="modal.sshHost">SSH Host (management network)</div>
+          <input type="text" class="form-input" id="fSshHost" placeholder="192.168.0.10" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <div class="form-label" data-i18n="modal.port">Port</div>
+          <input type="number" class="form-input" id="fPort" value="22" min="1" max="65535">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <div class="form-label" data-i18n="modal.qsfpHost">QSFP Host (high-speed transfer)</div>
+        <input type="text" class="form-input" id="fQsfpHost" placeholder="169.254.x.x" autocomplete="off">
+        <div class="form-note" data-i18n="modal.qsfpNote">High-speed interface IP for file data — nc (netcat) connects directly to this address, not SSH</div>
+      </div>
+
+      <div class="form-group">
+        <label class="radio-label" style="gap:8px;cursor:pointer">
+          <input type="checkbox" id="fUseSudo" style="accent-color:var(--accent);width:14px;height:14px;cursor:pointer">
+          <span style="font-size:12px;color:var(--text)" data-i18n="modal.useSudo">Use sudo for transfers</span>
+        </label>
+        <div class="form-note" style="margin-top:4px" data-i18n-html="modal.sudoNote">
+          When checked, tar commands run with <code style="color:var(--accent)">sudo</code>. Login password is used as sudo password.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <div class="form-label" data-i18n="modal.username">Username</div>
+        <input type="text" class="form-input" id="fUsername" placeholder="ubuntu" autocomplete="off">
+      </div>
+
+      <hr class="divider">
+
+      <div class="form-group">
+        <div class="form-label" data-i18n="modal.authType">Authentication</div>
+        <div class="radio-group">
+          <label class="radio-label"><input type="radio" name="authType" value="AGENT" checked> <span data-i18n="modal.authAgent">SSH Agent</span></label>
+          <label class="radio-label"><input type="radio" name="authType" value="KEY"> <span data-i18n="modal.authKey">Private key (-i)</span></label>
+          <label class="radio-label"><input type="radio" name="authType" value="PASSWORD"> <span data-i18n="modal.authPassword">Password</span></label>
+          <label class="radio-label"><input type="radio" name="authType" value="CUSTOM"> <span data-i18n="modal.authCustom">Custom client</span></label>
+        </div>
+      </div>
+
+      <div id="grpKey" style="display:none">
+        <div class="form-group">
+          <div class="form-label" data-i18n="modal.keyPath">Private key path</div>
+          <input type="text" class="form-input" id="fKeyPath" data-i18n-placeholder="modal.keyPathPlaceholder" placeholder="C:\Users\user\.ssh\id_rsa" autocomplete="off">
+        </div>
+      </div>
+
+      <div id="grpPassword" style="display:none">
+        <div class="form-group">
+          <div class="form-label" data-i18n="modal.clientPath">SSH client path</div>
+          <input type="text" class="form-input" id="fClientPath" data-i18n-placeholder="modal.clientPathPlaceholder" placeholder=".\ssh-client.exe" autocomplete="off">
+          <div class="form-note" data-i18n="modal.clientPathNote">Path to a client that supports password auth. Relative paths are based on app location.</div>
+        </div>
+        <div class="form-group" style="margin-top:8px">
+          <div class="form-label" data-i18n="modal.password">Password</div>
+          <input type="password" class="form-input" id="fCred" autocomplete="new-password">
+        </div>
+      </div>
+
+      <div id="grpCustom" style="display:none">
+        <div class="form-group">
+          <div class="form-label" data-i18n="modal.cmdTemplate">Command template</div>
+          <input type="text" class="form-input" id="fPrefix" data-i18n-placeholder="modal.cmdTemplatePlaceholder" placeholder=".\ssh-client.exe -l {USERNAME} -passwd {PASSWD} -p {PORT} {HOST} {CMD}" autocomplete="off">
+          <div class="form-note" data-i18n-html="modal.templateNote">
+            Available placeholders:<br>
+            <code style="color:var(--accent)">{USERNAME}</code> username &nbsp;
+            <code style="color:var(--accent)">{PASSWD}</code> password &nbsp;
+            <code style="color:var(--accent)">{PORT}</code> port &nbsp;
+            <code style="color:var(--accent)">{HOST}</code> SSH host &nbsp;
+            <code style="color:var(--accent)">{CMD}</code> remote command<br>
+            <code style="color:var(--text2)">.\ssh-client.exe -l {USERNAME} -passwd {PASSWD} -p {PORT} {HOST} {CMD}</code>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:8px">
+          <div class="form-label" data-i18n-html="modal.customPassword">Password <span style="color:var(--text3);font-weight:400">(optional — when using {PASSWD})</span></div>
+          <input type="password" class="form-input" id="fCredCustom" autocomplete="new-password">
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- TEST RESULT PANEL -->
+      <div id="testResult"></div>
+
+      <div class="modal-footer">
+        <button class="btn" id="btnTestSSH" data-i18n-title="test.sshTestTitle" data-i18n="test.sshTest" title="Test SSH connection">SSH Test</button>
+        <button class="btn" id="btnTestTools" data-i18n-title="test.toolsTestTitle" data-i18n="test.toolsTest" title="Check tar / pv / nc installation">Tools Test</button>
+        <div class="flex-spacer"></div>
+        <button class="btn btn-danger" id="btnDelServer" style="display:none" data-i18n="modal.delete">Delete</button>
+        <button class="btn" id="btnModalCancel" data-i18n="modal.cancel">Cancel</button>
+        <button class="btn btn-primary" id="btnModalSave" data-i18n="modal.save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <!-- neutralino.js must be loaded before i18n.js and main.js -->
+  <script src="/js/neutralino.js"></script>
+  <script src="/js/i18n.js?v=6"></script>
+  <script src="/js/main.js?v=6"></script>
+</body>
+
+</html>

@@ -1,0 +1,323 @@
+"use strict";
+
+// ============================================================
+// i18n — Single-file translation engine + EN/KO dictionaries
+// No build tools, no async loading, no race conditions.
+// ============================================================
+
+const _LANGS = {
+  en: {
+    // Header
+    "header.transferAtoB": "Transfer A \u2192 B",
+    "header.transferBtoA": "Transfer B \u2192 A",
+    "header.editServer": "Edit server",
+    "header.addServer": "Add server",
+
+    // Panel
+    "panel.parentDir": "Parent directory",
+    "panel.pathPlaceholder": "Path...",
+    "panel.refresh": "Refresh",
+    "panel.selectAll": "Select all",
+    "panel.name": "Name",
+    "panel.size": "Size",
+    "panel.modified": "Modified",
+    "panel.selectServer": "Select a server above",
+    "panel.loading": "Loading...",
+    "panel.connecting": "Connecting...",
+    "panel.emptyDir": "Empty directory",
+
+    // Progress
+    "progress.transferring": "Transferring...",
+    "progress.cancel": "Cancel",
+    "progress.total": "total",
+    "progress.elapsed": "elapsed",
+    "progress.etaDone": "ETA: Done",
+
+    // Status
+    "status.ready": "Ready",
+    "status.readyHint": "Ready \u2014 Press + to add a server",
+    "status.calcSize": "Calculating transfer size...",
+    "status.checkEnv": "Checking remote environment...",
+    "status.recvWait": "Waiting for receiver on {alias}...",
+    "status.transferring": "{src} \u2192 {dst} transferring...",
+    "status.cancelling": "Cancelling transfer...",
+    "status.cancelled": "Transfer cancelled",
+    "status.transferError": "Transfer error: {msg}",
+    "status.transferDone": "Transfer complete \u2713",
+    "status.transferFail": "Transfer failed \u2014 send:{sendCode} recv:{recvCode}",
+    "status.connecting": "{alias} connecting...",
+    "status.connected": "{alias} connected",
+    "status.connFail": "{alias} connection failed",
+
+    // Toast
+    "toast.saveFail": "Save failed: {msg}",
+    "toast.enterHostUser": "Enter host and username first",
+    "toast.selectBothServers": "Select both servers",
+    "toast.bothPathsNeeded": "Both paths are required",
+    "toast.selectFiles": "Select files/folders to transfer",
+    "toast.noPv": "pv not found \u2014 transferring without progress",
+    "toast.transferCancelled": "Transfer cancelled",
+    "toast.error": "Error: {msg}",
+    "toast.transferDone": "Transfer complete!",
+    "toast.requiredFields": "Fill in all required fields (alias, SSH host, QSFP host, username)",
+    "toast.saved": "\"{alias}\" saved",
+    "toast.serverDeleted": "Server deleted",
+    "toast.connFail": "{alias} unreachable",
+
+    // Modal
+    "modal.addServer": "Add Server",
+    "modal.editServer": "Edit Server",
+    "modal.alias": "Alias",
+    "modal.aliasPlaceholder": "e.g. DGX-Spark-A",
+    "modal.sshHost": "SSH Host (management network)",
+    "modal.port": "Port",
+    "modal.qsfpHost": "QSFP Host (high-speed transfer)",
+    "modal.qsfpNote": "High-speed interface IP for file data \u2014 nc (netcat) connects directly to this address, not SSH",
+    "modal.useSudo": "Use sudo for transfers",
+    "modal.sudoNote": "When checked, tar commands run with <code style=\"color:var(--accent)\">sudo</code>. Login password is used as sudo password.",
+    "modal.username": "Username",
+    "modal.authType": "Authentication",
+    "modal.authAgent": "SSH Agent",
+    "modal.authKey": "Private key (-i)",
+    "modal.authPassword": "Password",
+    "modal.authCustom": "Custom client",
+    "modal.keyPath": "Private key path",
+    "modal.keyPathPlaceholder": "C:\\Users\\user\\.ssh\\id_rsa",
+    "modal.clientPath": "SSH client path",
+    "modal.clientPathPlaceholder": ".\\ssh-client.exe",
+    "modal.clientPathNote": "Path to a client that supports password auth. Relative paths are based on app location.",
+    "modal.password": "Password",
+    "modal.cmdTemplate": "Command template",
+    "modal.cmdTemplatePlaceholder": ".\\ssh-client.exe -l {USERNAME} -passwd {PASSWD} -p {PORT} {HOST} {CMD}",
+    "modal.templateNote": "Available placeholders:<br><code style=\"color:var(--accent)\">{USERNAME}</code> username &nbsp;<code style=\"color:var(--accent)\">{PASSWD}</code> password &nbsp;<code style=\"color:var(--accent)\">{PORT}</code> port &nbsp;<code style=\"color:var(--accent)\">{HOST}</code> SSH host &nbsp;<code style=\"color:var(--accent)\">{CMD}</code> remote command<br><code style=\"color:var(--text2)\">.\\ssh-client.exe -l {USERNAME} -passwd {PASSWD} -p {PORT} {HOST} {CMD}</code>",
+    "modal.customPassword": "Password <span style=\"color:var(--text3);font-weight:400\">(optional \u2014 when using {PASSWD})</span>",
+    "modal.delete": "Delete",
+    "modal.cancel": "Cancel",
+    "modal.save": "Save",
+
+    // Test
+    "test.sshTest": "SSH Test",
+    "test.toolsTest": "Tools Test",
+    "test.sshTestTitle": "Test SSH connection",
+    "test.toolsTestTitle": "Check tar / pv / nc installation",
+    "test.sshConn": "SSH Connection",
+    "test.success": "Success",
+    "test.fail": "Failed",
+    "test.tar": "tar (archive)",
+    "test.pv": "pv  (progress meter)",
+    "test.nc": "nc  (netcat transfer)",
+    "test.notInstalled": "Not installed",
+    "test.sshFailCannotCheck": "Cannot check \u2014 SSH failed",
+
+    // Selection info
+    "sel.serverSelect": "-- Select server --",
+    "sel.selected": "{side}: {count} selected",
+
+    // Confirm
+    "confirm.deleteServer": "Delete \"{alias}\"?",
+
+    // Time
+    "time.sec": "{s}s",
+    "time.minSec": "{m}m {s}s",
+    "time.hourMin": "{h}h {m}m",
+
+    // Misc
+    "misc.noResponse": "No response",
+    "misc.connFailed": "Connection failed",
+  },
+
+  ko: {
+    // Header
+    "header.transferAtoB": "A \u2192 B \uc804\uc1a1",
+    "header.transferBtoA": "B \u2192 A \uc804\uc1a1",
+    "header.editServer": "\uc11c\ubc84 \ud3b8\uc9d1",
+    "header.addServer": "\uc11c\ubc84 \ucd94\uac00",
+
+    // Panel
+    "panel.parentDir": "\uc0c1\uc704 \ud3f4\ub354",
+    "panel.pathPlaceholder": "\uacbd\ub85c...",
+    "panel.refresh": "\uc0c8\ub85c\uace0\uce68",
+    "panel.selectAll": "\uc804\uccb4 \uc120\ud0dd",
+    "panel.name": "\uc774\ub984",
+    "panel.size": "\ud06c\uae30",
+    "panel.modified": "\uc218\uc815\uc77c",
+    "panel.selectServer": "\uc704\uc5d0\uc11c \uc11c\ubc84\ub97c \uc120\ud0dd\ud558\uc138\uc694",
+    "panel.loading": "\ub85c\ub529 \uc911...",
+    "panel.connecting": "\uc5f0\uacb0 \uc911...",
+    "panel.emptyDir": "\ube48 \ub514\ub809\ud1a0\ub9ac",
+
+    // Progress
+    "progress.transferring": "\uc804\uc1a1 \uc911...",
+    "progress.cancel": "\uc911\ub2e8",
+    "progress.total": "\uc804\uccb4",
+    "progress.elapsed": "\uacbd\uacfc",
+    "progress.etaDone": "ETA: \uc644\ub8cc",
+
+    // Status
+    "status.ready": "\uc900\ube44",
+    "status.readyHint": "\uc900\ube44  \u2014  \uc11c\ubc84\ub97c \ucd94\uac00\ud558\ub824\uba74 \uff0b \ubc84\ud2bc\uc744 \ub204\ub974\uc138\uc694",
+    "status.calcSize": "\uc804\uc1a1 \ud06c\uae30 \uacc4\uc0b0 \uc911...",
+    "status.checkEnv": "\uc6d0\uaca9 \ud658\uacbd \ud655\uc778 \uc911...",
+    "status.recvWait": "{alias}\uc5d0\uc11c \uc218\uc2e0 \ub300\uae30...",
+    "status.transferring": "{src} \u2192 {dst} \uc804\uc1a1 \uc911...",
+    "status.cancelling": "\uc804\uc1a1 \ucde8\uc18c \uc911...",
+    "status.cancelled": "\uc804\uc1a1 \ucde8\uc18c\ub428",
+    "status.transferError": "\uc804\uc1a1 \uc624\ub958: {msg}",
+    "status.transferDone": "\uc804\uc1a1 \uc644\ub8cc \u2713",
+    "status.transferFail": "\uc804\uc1a1 \uc2e4\ud328 \u2014 send:{sendCode} recv:{recvCode}",
+    "status.connecting": "{alias} \uc5f0\uacb0 \uc911...",
+    "status.connected": "{alias} \uc5f0\uacb0\ub428",
+    "status.connFail": "{alias} \uc5f0\uacb0 \uc2e4\ud328",
+
+    // Toast
+    "toast.saveFail": "\uc800\uc7a5 \uc2e4\ud328: {msg}",
+    "toast.enterHostUser": "\ud638\uc2a4\ud2b8\uc640 \uc0ac\uc6a9\uc790\uba85\uc744 \uba3c\uc800 \uc785\ub825\ud558\uc138\uc694",
+    "toast.selectBothServers": "\uc591\ucabd \uc11c\ubc84\ub97c \ubaa8\ub450 \uc120\ud0dd\ud558\uc138\uc694",
+    "toast.bothPathsNeeded": "\uc591\ucabd \uacbd\ub85c\uac00 \ud544\uc694\ud569\ub2c8\ub2e4",
+    "toast.selectFiles": "\uc804\uc1a1\ud560 \ud30c\uc77c/\ud3f4\ub354\ub97c \uc120\ud0dd\ud558\uc138\uc694",
+    "toast.noPv": "pv \uc5c6\uc74c \u2014 \uc9c4\ud589\ub960 \ubbf8\uc9c0\uc6d0 \ubaa8\ub4dc\ub85c \uc804\uc1a1\ud569\ub2c8\ub2e4",
+    "toast.transferCancelled": "\uc804\uc1a1\uc774 \ucde8\uc18c\ub418\uc5c8\uc2b5\ub2c8\ub2e4",
+    "toast.error": "\uc624\ub958: {msg}",
+    "toast.transferDone": "\uc804\uc1a1 \uc644\ub8cc!",
+    "toast.requiredFields": "\ud544\uc218 \ud56d\ubaa9\uc744 \ubaa8\ub450 \uc785\ub825\ud558\uc138\uc694 (\ubcc4\uce6d, SSH \ud638\uc2a4\ud2b8, QSFP \ud638\uc2a4\ud2b8, \uc0ac\uc6a9\uc790\uba85)",
+    "toast.saved": "\"{alias}\" \uc800\uc7a5\ub428",
+    "toast.serverDeleted": "\uc11c\ubc84 \uc0ad\uc81c\ub428",
+    "toast.connFail": "{alias} \uc5f0\uacb0 \ubd88\uac00",
+
+    // Modal
+    "modal.addServer": "\uc11c\ubc84 \ucd94\uac00",
+    "modal.editServer": "\uc11c\ubc84 \ud3b8\uc9d1",
+    "modal.alias": "\ubcc4\uce6d",
+    "modal.aliasPlaceholder": "\uc608: DGX-Spark-A",
+    "modal.sshHost": "SSH \ud638\uc2a4\ud2b8 (\uad00\ub9ac\ub9dd)",
+    "modal.port": "\ud3ec\ud2b8",
+    "modal.qsfpHost": "QSFP \ud638\uc2a4\ud2b8 (\uace0\uc18d \uc804\uc1a1\ub9dd)",
+    "modal.qsfpNote": "\ud30c\uc77c \ub370\uc774\ud130\uac00 \uc624\uac00\ub294 \uace0\uc18d \uc778\ud130\ud398\uc774\uc2a4 IP \u2014 SSH\uac00 \uc544\ub2cc nc(netcat)\uc774 \uc774 \uc8fc\uc18c\ub85c \uc9c1\uc811 \uc5f0\uacb0\ub429\ub2c8\ub2e4",
+    "modal.useSudo": "\uc804\uc1a1 \uc2dc sudo \uc0ac\uc6a9",
+    "modal.sudoNote": "\uccb4\ud06c\ud558\uba74 tar \uba85\ub839\uc744 <code style=\"color:var(--accent)\">sudo</code>\ub85c \uc2e4\ud589\ud569\ub2c8\ub2e4. \ub85c\uadf8\uc778 \ube44\ubc00\ubc88\ud638\uac00 sudo \ube44\ubc00\ubc88\ud638\ub85c \uc0ac\uc6a9\ub429\ub2c8\ub2e4.",
+    "modal.username": "\uc0ac\uc6a9\uc790\uba85",
+    "modal.authType": "\uc778\uc99d \ubc29\uc2dd",
+    "modal.authAgent": "SSH Agent",
+    "modal.authKey": "\uac1c\uc778\ud0a4 (-i)",
+    "modal.authPassword": "\ube44\ubc00\ubc88\ud638",
+    "modal.authCustom": "\ucee4\uc2a4\ud140 \ud074\ub77c\uc774\uc5b8\ud2b8",
+    "modal.keyPath": "\uac1c\uc778\ud0a4 \uacbd\ub85c",
+    "modal.keyPathPlaceholder": "C:\\Users\\user\\.ssh\\id_rsa",
+    "modal.clientPath": "SSH \ud074\ub77c\uc774\uc5b8\ud2b8 \uacbd\ub85c",
+    "modal.clientPathPlaceholder": ".\\ssh-client.exe",
+    "modal.clientPathNote": "\ube44\ubc00\ubc88\ud638 \uc778\uc99d\uc744 \uc9c0\uc6d0\ud558\ub294 \ud074\ub77c\uc774\uc5b8\ud2b8 \uacbd\ub85c. \uc0c1\ub300\uacbd\ub85c\ub294 \uc571 \uc2e4\ud589 \uc704\uce58 \uae30\uc900.",
+    "modal.password": "\ube44\ubc00\ubc88\ud638",
+    "modal.cmdTemplate": "\ucee4\ub9e8\ub4dc \ud15c\ud50c\ub9bf",
+    "modal.cmdTemplatePlaceholder": ".\\ssh-client.exe -l {USERNAME} -passwd {PASSWD} -p {PORT} {HOST} {CMD}",
+    "modal.templateNote": "\uc0ac\uc6a9 \uac00\ub2a5\ud55c \ud50c\ub808\uc774\uc2a4\ud640\ub354:<br><code style=\"color:var(--accent)\">{USERNAME}</code> \uc0ac\uc6a9\uc790\uba85 &nbsp;<code style=\"color:var(--accent)\">{PASSWD}</code> \ube44\ubc00\ubc88\ud638 &nbsp;<code style=\"color:var(--accent)\">{PORT}</code> \ud3ec\ud2b8 &nbsp;<code style=\"color:var(--accent)\">{HOST}</code> SSH \ud638\uc2a4\ud2b8 &nbsp;<code style=\"color:var(--accent)\">{CMD}</code> \uc6d0\uaca9 \uba85\ub839<br><code style=\"color:var(--text2)\">.\\ssh-client.exe -l {USERNAME} -passwd {PASSWD} -p {PORT} {HOST} {CMD}</code>",
+    "modal.customPassword": "\ube44\ubc00\ubc88\ud638 <span style=\"color:var(--text3);font-weight:400\">(\uc120\ud0dd \u2014 {PASSWD} \uc0ac\uc6a9 \uc2dc)</span>",
+    "modal.delete": "\uc0ad\uc81c",
+    "modal.cancel": "\ucde8\uc18c",
+    "modal.save": "\uc800\uc7a5",
+
+    // Test
+    "test.sshTest": "SSH \ud14c\uc2a4\ud2b8",
+    "test.toolsTest": "\ub3c4\uad6c \ud14c\uc2a4\ud2b8",
+    "test.sshTestTitle": "SSH \uc5f0\uacb0 \ud655\uc778",
+    "test.toolsTestTitle": "tar / pv / nc \uc124\uce58 \ud655\uc778",
+    "test.sshConn": "SSH \uc5f0\uacb0",
+    "test.success": "\uc131\uacf5",
+    "test.fail": "\uc2e4\ud328",
+    "test.tar": "tar (\uc544\uce74\uc774\ube0c)",
+    "test.pv": "pv  (\uc9c4\ud589\ub960 \uce21\uc815)",
+    "test.nc": "nc  (netcat \uc804\uc1a1)",
+    "test.notInstalled": "\uc124\uce58 \uc548 \ub428",
+    "test.sshFailCannotCheck": "SSH \uc2e4\ud328\ub85c \ud655\uc778 \ubd88\uac00",
+
+    // Selection info
+    "sel.serverSelect": "-- \uc11c\ubc84 \uc120\ud0dd --",
+    "sel.selected": "{side}: {count}\uac1c \uc120\ud0dd",
+
+    // Confirm
+    "confirm.deleteServer": "\"{alias}\"\ub97c \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?",
+
+    // Time
+    "time.sec": "{s}\ucd08",
+    "time.minSec": "{m}\ubd84 {s}\ucd08",
+    "time.hourMin": "{h}\uc2dc\uac04 {m}\ubd84",
+
+    // Misc
+    "misc.noResponse": "\uc751\ub2f5 \uc5c6\uc74c",
+    "misc.connFailed": "\uc5f0\uacb0 \uc2e4\ud328",
+  }
+};
+
+let _currentLang = 'en';
+
+/**
+ * Translate a key with optional {placeholder} substitution.
+ * Fallback chain: current lang -> 'en' -> raw key.
+ */
+function t(key, params) {
+  let str = (_LANGS[_currentLang] && _LANGS[_currentLang][key])
+         || (_LANGS.en && _LANGS.en[key])
+         || key;
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      str = str.replace(new RegExp('\\{' + k + '\\}', 'g'), v);
+    }
+  }
+  return str;
+}
+
+/** Get current language code */
+function getLang() { return _currentLang; }
+
+/**
+ * Switch language, apply to DOM, persist to Neutralino.storage.
+ */
+async function setLang(lang) {
+  if (!_LANGS[lang]) return;
+  _currentLang = lang;
+  document.documentElement.lang = lang;
+  applyI18n();
+  try {
+    await Neutralino.storage.setData('lang', lang);
+  } catch (_) { }
+}
+
+/**
+ * Initialize i18n: load persisted language, apply to DOM.
+ */
+async function initI18n() {
+  try {
+    const saved = await Neutralino.storage.getData('lang');
+    if (saved && _LANGS[saved]) _currentLang = saved;
+  } catch (_) {
+    // First run or storage unavailable — use default 'en'
+  }
+  document.documentElement.lang = _currentLang;
+  applyI18n();
+}
+
+/**
+ * Apply translations to all DOM elements with data-i18n* attributes.
+ * Idempotent — safe to call repeatedly after DOM changes.
+ */
+function applyI18n() {
+  // data-i18n="key" → textContent
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  // data-i18n-html="key" → innerHTML (for strings containing HTML tags)
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    el.innerHTML = t(el.dataset.i18nHtml);
+  });
+  // data-i18n-placeholder="key" → placeholder attribute
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  // data-i18n-title="key" → title attribute
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.title = t(el.dataset.i18nTitle);
+  });
+
+  // Sync lang switcher if present
+  const langSelect = document.getElementById('langSelect');
+  if (langSelect) langSelect.value = _currentLang;
+}
