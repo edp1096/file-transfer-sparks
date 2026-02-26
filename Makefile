@@ -3,7 +3,7 @@
 
 SSH_DIR  := ssh-client
 SSH_BIN  := $(SSH_DIR)/bin
-DIST_DIR := dist/dgx-transfer
+DIST_DIR := dist/file-transfer-sparks
 OUT_DIR  := dist
 
 # ──────────────────────────────────────────────────────────────
@@ -27,34 +27,34 @@ pkg-win-x64:
 	@echo [pkg] win_x64
 	@if exist "$(OUT_DIR)\tmp_win_x64" rmdir /S /Q "$(OUT_DIR)\tmp_win_x64"
 	@md "$(OUT_DIR)\tmp_win_x64"
-	@copy /Y "$(DIST_DIR)\dgx-transfer-win_x64.exe"            "$(OUT_DIR)\tmp_win_x64\dgx-transfer.exe" >NUL
+	@copy /Y "$(DIST_DIR)\file-transfer-sparks-win_x64.exe"            "$(OUT_DIR)\tmp_win_x64\file-transfer-sparks.exe" >NUL
 	@copy /Y "$(SSH_BIN)\ssh-client_windows_amd64.exe"         "$(OUT_DIR)\tmp_win_x64\ssh-client.exe"   >NUL
 	@copy /Y "$(DIST_DIR)\resources.neu"                       "$(OUT_DIR)\tmp_win_x64\resources.neu"    >NUL
-	tar -acf "$(OUT_DIR)\dgx-transfer-win_x64.zip" -C "$(OUT_DIR)\tmp_win_x64" .
+	tar -acf "$(OUT_DIR)\file-transfer-sparks-win_x64.zip" -C "$(OUT_DIR)\tmp_win_x64" .
 	@rmdir /S /Q "$(OUT_DIR)\tmp_win_x64"
-	@echo   -^> dist\dgx-transfer-win_x64.zip
+	@echo   -^> dist\file-transfer-sparks-win_x64.zip
 
 pkg-linux-x64:
 	@echo [pkg] linux_x64
 	@if exist "$(OUT_DIR)\tmp_linux_x64" rmdir /S /Q "$(OUT_DIR)\tmp_linux_x64"
 	@md "$(OUT_DIR)\tmp_linux_x64"
-	@copy /Y "$(DIST_DIR)\dgx-transfer-linux_x64"              "$(OUT_DIR)\tmp_linux_x64\dgx-transfer"   >NUL
+	@copy /Y "$(DIST_DIR)\file-transfer-sparks-linux_x64"              "$(OUT_DIR)\tmp_linux_x64\file-transfer-sparks"   >NUL
 	@copy /Y "$(SSH_BIN)\ssh-client_linux_amd64"               "$(OUT_DIR)\tmp_linux_x64\ssh-client"     >NUL
 	@copy /Y "$(DIST_DIR)\resources.neu"                       "$(OUT_DIR)\tmp_linux_x64\resources.neu"  >NUL
-	tar -czf "$(OUT_DIR)/dgx-transfer-linux_x64.tar.gz" -C "$(OUT_DIR)/tmp_linux_x64" .
+	tar -czf "$(OUT_DIR)/file-transfer-sparks-linux_x64.tar.gz" -C "$(OUT_DIR)/tmp_linux_x64" .
 	@rmdir /S /Q "$(OUT_DIR)\tmp_linux_x64"
-	@echo   -^> dist\dgx-transfer-linux_x64.tar.gz
+	@echo   -^> dist\file-transfer-sparks-linux_x64.tar.gz
 
 pkg-linux-arm64:
 	@echo [pkg] linux_arm64
 	@if exist "$(OUT_DIR)\tmp_linux_arm64" rmdir /S /Q "$(OUT_DIR)\tmp_linux_arm64"
 	@md "$(OUT_DIR)\tmp_linux_arm64"
-	@copy /Y "$(DIST_DIR)\dgx-transfer-linux_arm64"            "$(OUT_DIR)\tmp_linux_arm64\dgx-transfer"  >NUL
+	@copy /Y "$(DIST_DIR)\file-transfer-sparks-linux_arm64"            "$(OUT_DIR)\tmp_linux_arm64\file-transfer-sparks"  >NUL
 	@copy /Y "$(SSH_BIN)\ssh-client_linux_arm64"               "$(OUT_DIR)\tmp_linux_arm64\ssh-client"    >NUL
 	@copy /Y "$(DIST_DIR)\resources.neu"                       "$(OUT_DIR)\tmp_linux_arm64\resources.neu" >NUL
-	tar -czf "$(OUT_DIR)/dgx-transfer-linux_arm64.tar.gz" -C "$(OUT_DIR)/tmp_linux_arm64" .
+	tar -czf "$(OUT_DIR)/file-transfer-sparks-linux_arm64.tar.gz" -C "$(OUT_DIR)/tmp_linux_arm64" .
 	@rmdir /S /Q "$(OUT_DIR)\tmp_linux_arm64"
-	@echo   -^> dist\dgx-transfer-linux_arm64.tar.gz
+	@echo   -^> dist\file-transfer-sparks-linux_arm64.tar.gz
 
 clean:
 	$(MAKE) -C $(SSH_DIR) clean
@@ -67,39 +67,39 @@ pkg-win-x64:
 	@echo "[pkg] win_x64"
 	@rm -rf $(OUT_DIR)/tmp_win_x64
 	@mkdir -p $(OUT_DIR)/tmp_win_x64
-	@cp $(DIST_DIR)/dgx-transfer-win_x64.exe    $(OUT_DIR)/tmp_win_x64/dgx-transfer.exe
+	@cp $(DIST_DIR)/file-transfer-sparks-win_x64.exe    $(OUT_DIR)/tmp_win_x64/file-transfer-sparks.exe
 	@cp $(SSH_BIN)/ssh-client_windows_amd64.exe $(OUT_DIR)/tmp_win_x64/ssh-client.exe
 	@cp $(DIST_DIR)/resources.neu               $(OUT_DIR)/tmp_win_x64/resources.neu
-	@zip -qj $(OUT_DIR)/dgx-transfer-win_x64.zip \
-	    $(OUT_DIR)/tmp_win_x64/dgx-transfer.exe \
+	@zip -qj $(OUT_DIR)/file-transfer-sparks-win_x64.zip \
+	    $(OUT_DIR)/tmp_win_x64/file-transfer-sparks.exe \
 	    $(OUT_DIR)/tmp_win_x64/ssh-client.exe \
 	    $(OUT_DIR)/tmp_win_x64/resources.neu
 	@rm -rf $(OUT_DIR)/tmp_win_x64
-	@echo "  -> dist/dgx-transfer-win_x64.zip"
+	@echo "  -> dist/file-transfer-sparks-win_x64.zip"
 
 pkg-linux-x64:
 	@echo "[pkg] linux_x64"
 	@rm -rf $(OUT_DIR)/tmp_linux_x64
 	@mkdir -p $(OUT_DIR)/tmp_linux_x64
-	@cp $(DIST_DIR)/dgx-transfer-linux_x64  $(OUT_DIR)/tmp_linux_x64/dgx-transfer
+	@cp $(DIST_DIR)/file-transfer-sparks-linux_x64  $(OUT_DIR)/tmp_linux_x64/file-transfer-sparks
 	@cp $(SSH_BIN)/ssh-client_linux_amd64   $(OUT_DIR)/tmp_linux_x64/ssh-client
 	@cp $(DIST_DIR)/resources.neu           $(OUT_DIR)/tmp_linux_x64/resources.neu
-	@chmod +x $(OUT_DIR)/tmp_linux_x64/dgx-transfer $(OUT_DIR)/tmp_linux_x64/ssh-client
-	@tar -czf $(OUT_DIR)/dgx-transfer-linux_x64.tar.gz -C $(OUT_DIR)/tmp_linux_x64 .
+	@chmod +x $(OUT_DIR)/tmp_linux_x64/file-transfer-sparks $(OUT_DIR)/tmp_linux_x64/ssh-client
+	@tar -czf $(OUT_DIR)/file-transfer-sparks-linux_x64.tar.gz -C $(OUT_DIR)/tmp_linux_x64 .
 	@rm -rf $(OUT_DIR)/tmp_linux_x64
-	@echo "  -> dist/dgx-transfer-linux_x64.tar.gz"
+	@echo "  -> dist/file-transfer-sparks-linux_x64.tar.gz"
 
 pkg-linux-arm64:
 	@echo "[pkg] linux_arm64"
 	@rm -rf $(OUT_DIR)/tmp_linux_arm64
 	@mkdir -p $(OUT_DIR)/tmp_linux_arm64
-	@cp $(DIST_DIR)/dgx-transfer-linux_arm64 $(OUT_DIR)/tmp_linux_arm64/dgx-transfer
+	@cp $(DIST_DIR)/file-transfer-sparks-linux_arm64 $(OUT_DIR)/tmp_linux_arm64/file-transfer-sparks
 	@cp $(SSH_BIN)/ssh-client_linux_arm64    $(OUT_DIR)/tmp_linux_arm64/ssh-client
 	@cp $(DIST_DIR)/resources.neu            $(OUT_DIR)/tmp_linux_arm64/resources.neu
-	@chmod +x $(OUT_DIR)/tmp_linux_arm64/dgx-transfer $(OUT_DIR)/tmp_linux_arm64/ssh-client
-	@tar -czf $(OUT_DIR)/dgx-transfer-linux_arm64.tar.gz -C $(OUT_DIR)/tmp_linux_arm64 .
+	@chmod +x $(OUT_DIR)/tmp_linux_arm64/file-transfer-sparks $(OUT_DIR)/tmp_linux_arm64/ssh-client
+	@tar -czf $(OUT_DIR)/file-transfer-sparks-linux_arm64.tar.gz -C $(OUT_DIR)/tmp_linux_arm64 .
 	@rm -rf $(OUT_DIR)/tmp_linux_arm64
-	@echo "  -> dist/dgx-transfer-linux_arm64.tar.gz"
+	@echo "  -> dist/file-transfer-sparks-linux_arm64.tar.gz"
 
 clean:
 	$(MAKE) -C $(SSH_DIR) clean

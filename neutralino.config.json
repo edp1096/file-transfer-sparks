@@ -1,5 +1,5 @@
 {
-  "applicationId": "com.dgx.filetransfer",
+  "applicationId": "com.filetransfer.sparks",
   "version": "1.0.0",
   "defaultMode": "window",
   "port": 0,
@@ -22,7 +22,7 @@
   },
   "modes": {
     "window": {
-      "title": "DGX Transfer",
+      "title": "File Transfer for DGX Sparks",
       "width": 1024,
       "height": 1088,
       "minWidth": 1000,
@@ -34,7 +34,7 @@
     }
   },
   "cli": {
-    "binaryName": "dgx-transfer",
+    "binaryName": "file-transfer-sparks",
     "resourcesPath": "/resources/",
     "extensionsPath": "/extensions/",
     "clientLibrary": "/resources/js/neutralino.js",
