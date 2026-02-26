@@ -15,5 +15,6 @@ File/folder transfer via QSFP for 2 DGX Sparks
 ## Build
 
 ```sh
+neu update
 make
 ```
