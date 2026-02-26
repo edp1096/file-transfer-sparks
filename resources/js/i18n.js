@@ -124,6 +124,71 @@ const _LANGS = {
     // Misc
     "misc.noResponse": "No response",
     "misc.connFailed": "Connection failed",
+
+    // Tabs
+    "tab.fileTransfer": "File Transfer",
+    "tab.backup": "Backup & Restore",
+
+    // Modal — SSD section
+    "modal.ssdSection": "External SSD & Backup Settings",
+    "modal.ssdDevice": "Device",
+    "modal.ssdDevicePlaceholder": "e.g. /dev/sda1",
+    "modal.ssdMountPoint": "Mount Point",
+    "modal.ssdMountPlaceholder": "e.g. /mnt/ssd_t5",
+    "modal.ssdScan": "Scan",
+    "modal.hfHubPath": "HF Hub Path",
+    "modal.hfHubPathPlaceholder": "e.g. /home/ubuntu/hf_models/hub",
+    "modal.ggufPath": "GGUF Path",
+    "modal.ggufPathPlaceholder": "e.g. /home/ubuntu/gguf_models",
+
+    // Backup tab — server/mount
+    "backup.selectServer": "Select a server to use backup & restore",
+    "backup.noSsdConfig": "No SSD configured for this server. Edit the server to add SSD settings.",
+    "backup.mountStatus": "SSD Mount",
+    "backup.mounted": "Mounted",
+    "backup.notMounted": "Not mounted",
+    "backup.mount": "Mount",
+    "backup.unmount": "Unmount",
+    "backup.checkMount": "Check",
+    "backup.mounting": "Mounting...",
+    "backup.unmounting": "Unmounting...",
+    "backup.checking": "Checking...",
+    "backup.mountSuccess": "Mounted: {point}",
+    "backup.unmountSuccess": "Unmounted: {point}",
+    "backup.mountFail": "Mount failed: {msg}",
+    "backup.unmountFail": "Unmount failed: {msg}",
+    "backup.noSsdDevice": "No SSD device configured",
+    "backup.noMountPoint": "No mount point configured",
+    "backup.scanNoSsd": "No external SSD found (only NVMe detected)",
+    "backup.scanFail": "Scan failed: {msg}",
+
+    // Backup tab — sub-tabs
+    "backup.tabDocker": "Docker Images",
+    "backup.tabHF": "HF Models",
+    "backup.tabGGUF": "GGUF",
+
+    // Backup tab — actions
+    "backup.sourcePanel": "Server",
+    "backup.destPanel": "SSD Backup",
+    "backup.loadList": "Load List",
+    "backup.loadBackups": "Load Backups",
+    "backup.backup": "Backup",
+    "backup.backupArrow": "Backup \u2192",
+    "backup.restoreArrow": "\u2190 Restore",
+    "backup.restore": "Restore",
+    "backup.cancel": "Cancel",
+    "backup.loading": "Loading...",
+    "backup.noItems": "No items found",
+    "backup.selectItems": "Select items to backup / restore",
+    "backup.backupRunning": "Backup in progress...",
+    "backup.restoreRunning": "Restore in progress...",
+    "backup.backupDone": "Backup complete",
+    "backup.restoreDone": "Restore complete",
+    "backup.opFail": "Operation failed: {msg}",
+    "backup.noHfPath": "HF Hub path not configured",
+    "backup.noGgufPath": "GGUF path not configured",
+    "backup.clearLog": "Clear",
+    "backup.ssdNotMounted": "SSD is not mounted. Mount it first.",
   },
 
   ko: {
@@ -244,6 +309,71 @@ const _LANGS = {
     // Misc
     "misc.noResponse": "\uc751\ub2f5 \uc5c6\uc74c",
     "misc.connFailed": "\uc5f0\uacb0 \uc2e4\ud328",
+
+    // Tabs
+    "tab.fileTransfer": "\ud30c\uc77c \uc804\uc1a1",
+    "tab.backup": "\ubc31\uc5c5 & \ubcf5\uc6d0",
+
+    // Modal — SSD section
+    "modal.ssdSection": "\uc678\uc7a5 SSD & \ubc31\uc5c5 \uc124\uc815",
+    "modal.ssdDevice": "\ub514\ubc14\uc774\uc2a4",
+    "modal.ssdDevicePlaceholder": "\uc608: /dev/sda1",
+    "modal.ssdMountPoint": "\ub9c8\uc6b4\ud2b8 \ud3ec\uc778\ud2b8",
+    "modal.ssdMountPlaceholder": "\uc608: /mnt/ssd_t5",
+    "modal.ssdScan": "\uc2a4\uce94",
+    "modal.hfHubPath": "HF Hub \uacbd\ub85c",
+    "modal.hfHubPathPlaceholder": "\uc608: /home/ubuntu/hf_models/hub",
+    "modal.ggufPath": "GGUF \uacbd\ub85c",
+    "modal.ggufPathPlaceholder": "\uc608: /home/ubuntu/gguf_models",
+
+    // Backup tab — server/mount
+    "backup.selectServer": "\ubc31\uc5c5\u00b7\ubcf5\uc6d0\ud560 \uc11c\ubc84\ub97c \uc120\ud0dd\ud558\uc138\uc694",
+    "backup.noSsdConfig": "\uc774 \uc11c\ubc84\uc5d0 SSD \uc124\uc815\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc11c\ubc84\ub97c \ud3b8\uc9d1\ud574\uc11c SSD \uc124\uc815\uc744 \ucd94\uac00\ud558\uc138\uc694.",
+    "backup.mountStatus": "SSD \ub9c8\uc6b4\ud2b8",
+    "backup.mounted": "\ub9c8\uc6b4\ud2b8\ub428",
+    "backup.notMounted": "\ub9c8\uc6b4\ud2b8 \uc548\ub428",
+    "backup.mount": "\ub9c8\uc6b4\ud2b8",
+    "backup.unmount": "\uc5b8\ub9c8\uc6b4\ud2b8",
+    "backup.checkMount": "\ud655\uc778",
+    "backup.mounting": "\ub9c8\uc6b4\ud2b8 \uc911...",
+    "backup.unmounting": "\uc5b8\ub9c8\uc6b4\ud2b8 \uc911...",
+    "backup.checking": "\ud655\uc778 \uc911...",
+    "backup.mountSuccess": "\ub9c8\uc6b4\ud2b8 \uc644\ub8cc: {point}",
+    "backup.unmountSuccess": "\uc5b8\ub9c8\uc6b4\ud2b8 \uc644\ub8cc: {point}",
+    "backup.mountFail": "\ub9c8\uc6b4\ud2b8 \uc2e4\ud328: {msg}",
+    "backup.unmountFail": "\uc5b8\ub9c8\uc6b4\ud2b8 \uc2e4\ud328: {msg}",
+    "backup.noSsdDevice": "SSD \ub514\ubc14\uc774\uc2a4 \uc124\uc815 \uc5c6\uc74c",
+    "backup.noMountPoint": "\ub9c8\uc6b4\ud2b8 \ud3ec\uc778\ud2b8 \uc124\uc815 \uc5c6\uc74c",
+    "backup.scanNoSsd": "\uc678\uc7a5 SSD \uc5c6\uc74c (NVMe\ub9cc \uac10\uc9c0\ub428)",
+    "backup.scanFail": "\uc2a4\uce94 \uc2e4\ud328: {msg}",
+
+    // Backup tab — sub-tabs
+    "backup.tabDocker": "Docker \uc774\ubbf8\uc9c0",
+    "backup.tabHF": "HF \ubaa8\ub378",
+    "backup.tabGGUF": "GGUF",
+
+    // Backup tab — actions
+    "backup.sourcePanel": "\uc11c\ubc84",
+    "backup.destPanel": "SSD \ubc31\uc5c5",
+    "backup.loadList": "\ubaa9\ub85d \ubd88\ub7ec\uc624\uae30",
+    "backup.loadBackups": "\ubc31\uc5c5 \ubaa9\ub85d",
+    "backup.backup": "\ubc31\uc5c5",
+    "backup.backupArrow": "\ubc31\uc5c5 \u2192",
+    "backup.restoreArrow": "\u2190 \ubcf5\uc6d0",
+    "backup.restore": "\ubcf5\uc6d0",
+    "backup.cancel": "\ucde8\uc18c",
+    "backup.loading": "\ub85c\ub529 \uc911...",
+    "backup.noItems": "\ud56d\ubaa9 \uc5c6\uc74c",
+    "backup.selectItems": "\ubc31\uc5c5/\ubcf5\uc6d0\ud560 \ud56d\ubaa9\uc744 \uc120\ud0dd\ud558\uc138\uc694",
+    "backup.backupRunning": "\ubc31\uc5c5 \uc911...",
+    "backup.restoreRunning": "\ubcf5\uc6d0 \uc911...",
+    "backup.backupDone": "\ubc31\uc5c5 \uc644\ub8cc",
+    "backup.restoreDone": "\ubcf5\uc6d0 \uc644\ub8cc",
+    "backup.opFail": "\uc791\uc5c5 \uc2e4\ud328: {msg}",
+    "backup.noHfPath": "HF Hub \uacbd\ub85c \uc124\uc815 \uc5c6\uc74c",
+    "backup.noGgufPath": "GGUF \uacbd\ub85c \uc124\uc815 \uc5c6\uc74c",
+    "backup.clearLog": "\uc9c0\uc6b0\uae30",
+    "backup.ssdNotMounted": "SSD\uac00 \ub9c8\uc6b4\ud2b8\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uba3c\uc800 \ub9c8\uc6b4\ud2b8 \ud558\uc138\uc694.",
   }
 };
 

@@ -11,3 +11,8 @@ neutralino.js
 # Neutralinojs related files
 .storage
 *.log
+
+/.tmp
+/ssh-client.exe
+/servers.enc
+/refs

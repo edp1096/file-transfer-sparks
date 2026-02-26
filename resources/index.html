@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>File Transfer for DGX Sparks</title>
-  <link rel="stylesheet" href="/styles.css?v=6">
+  <link rel="stylesheet" href="/styles.css?v=12">
 </head>
 
 <body>
@@ -19,7 +19,11 @@
         <option value="ko">한국어</option>
       </select>
     </div>
-    <div class="header-bottom">
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tabFileTransfer" data-i18n="tab.fileTransfer">File Transfer</button>
+      <button class="tab-btn" id="tabBackup" data-i18n="tab.backup">Backup &amp; Restore</button>
+    </div>
+    <div class="header-bottom" id="headerTransfer">
       <div class="server-bar">
         <div class="conn-dot" id="dotA"></div>
         <select class="server-select" id="selectA">
@@ -42,6 +46,24 @@
       </div>
     </div>
   </header>
+
+  <!-- BACKUP TAB HEADER -->
+  <div id="headerBackup" style="display:none" class="header-bottom">
+    <div class="server-bar">
+      <div class="conn-dot" id="dotBk"></div>
+      <select class="server-select" id="selectBk">
+        <option value="" data-i18n="sel.serverSelect">-- Select server --</option>
+      </select>
+      <button class="btn-icon" id="btnEditBk" data-i18n-title="header.editServer" title="Edit server" disabled>⚙</button>
+    </div>
+    <div class="flex-spacer"></div>
+    <div id="bkMountBar" class="bk-mount-bar" style="display:none">
+      <div class="conn-dot" id="dotMount"></div>
+      <span class="bk-mount-label" id="bkMountLabel">--</span>
+      <button class="btn btn-sm btn-primary" id="btnMount" data-i18n="backup.mount">Mount</button>
+      <button class="btn btn-sm btn-danger" id="btnUnmount" data-i18n="backup.unmount" style="display:none">Unmount</button>
+    </div>
+  </div>
 
   <main id="main">
     <div class="file-panel">
@@ -79,6 +101,72 @@
       </div>
     </div>
   </main>
+
+  <!-- BACKUP / RESTORE PANEL -->
+  <div id="backupPanel" style="display:none" class="backup-panel">
+    <!-- State: no server selected -->
+    <div id="bkStateNoServer" class="panel-state">
+      <div class="state-icon">🖥</div>
+      <div class="state-msg" data-i18n="backup.selectServer">Select a server to use backup &amp; restore</div>
+    </div>
+    <!-- State: no SSD config -->
+    <div id="bkStateNoSsd" class="panel-state" style="display:none">
+      <div class="state-icon">💾</div>
+      <div class="state-msg" data-i18n="backup.noSsdConfig">No SSD configured for this server.</div>
+    </div>
+    <!-- Main backup content -->
+    <div id="bkContent" style="display:none" class="bk-content">
+      <!-- Sub-tabs -->
+      <div class="bk-subtab-bar">
+        <button class="bk-subtab active" id="bkTabDocker" data-i18n="backup.tabDocker">Docker Images</button>
+        <button class="bk-subtab" id="bkTabHF" data-i18n="backup.tabHF">HF Models</button>
+        <button class="bk-subtab" id="bkTabGGUF" data-i18n="backup.tabGGUF">GGUF</button>
+      </div>
+      <!-- Content area: left=server items, middle=SSD backups, right=log -->
+      <div class="bk-body">
+        <!-- Left: items on server (source for Backup) -->
+        <div class="bk-list-pane">
+          <div class="bk-list-toolbar">
+            <span class="bk-pane-label" data-i18n="backup.sourcePanel">Server</span>
+            <button class="btn btn-sm" id="btnBkLoad" data-i18n="backup.loadList">Load List</button>
+            <div class="flex-spacer"></div>
+            <button class="btn btn-sm btn-primary" id="btnBkBackup" data-i18n="backup.backupArrow" disabled>Backup →</button>
+            <button class="btn btn-sm btn-danger" id="btnBkCancel" data-i18n="backup.cancel" style="display:none">Cancel</button>
+          </div>
+          <div class="bk-list" id="bkList">
+            <div class="panel-state">
+              <div class="state-msg" style="color:var(--text3)" data-i18n="backup.selectItems">Select items to backup / restore</div>
+            </div>
+          </div>
+        </div>
+        <!-- Middle: items already backed up on SSD (source for Restore) -->
+        <div class="bk-list-pane">
+          <div class="bk-list-toolbar">
+            <span class="bk-pane-label" data-i18n="backup.destPanel">SSD Backup</span>
+            <button class="btn btn-sm" id="btnBkLoadBkup" data-i18n="backup.loadBackups">Load Backups</button>
+            <div class="flex-spacer"></div>
+            <button class="btn btn-sm" id="btnBkRestore" data-i18n="backup.restoreArrow" disabled>← Restore</button>
+          </div>
+          <div class="bk-list" id="bkBkupList">
+            <div class="panel-state">
+              <div class="state-msg" style="color:var(--text3)" data-i18n="backup.selectItems">Select items to backup / restore</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Resize handle -->
+      <div class="bk-resize-handle" id="bkResizeHandle"></div>
+      <!-- Bottom log (full width) -->
+      <div class="bk-bottom-log" id="bkBottomLog">
+        <div class="bk-log-toolbar">
+          <span class="bk-pane-label">Log</span>
+          <div class="flex-spacer"></div>
+          <button class="btn btn-sm" id="btnBkClearLog" data-i18n="backup.clearLog">Clear</button>
+        </div>
+        <div class="bk-log" id="bkLog"></div>
+      </div>
+    </div>
+  </div>
 
   <div id="progressSection">
     <div class="progress-meta">
@@ -195,6 +283,38 @@
 
       <hr class="divider">
 
+      <div class="form-group">
+        <div class="form-label" data-i18n="modal.ssdSection">External SSD &amp; Backup Settings</div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label" data-i18n="modal.ssdDevice">Device</div>
+          <div style="display:flex;gap:5px">
+            <input type="text" class="form-input" id="fSsdDevice" data-i18n-placeholder="modal.ssdDevicePlaceholder" placeholder="/dev/sda1" autocomplete="off">
+            <button class="btn btn-sm" id="btnScanSsd" data-i18n="modal.ssdScan" style="flex-shrink:0">Scan</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label" data-i18n="modal.ssdMountPoint">Mount Point</div>
+          <input type="text" class="form-input" id="fSsdMount" data-i18n-placeholder="modal.ssdMountPlaceholder" placeholder="/mnt/ssd_t5" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <div class="form-label" data-i18n="modal.hfHubPath">HF Hub Path</div>
+        <input type="text" class="form-input" id="fHfHubPath" data-i18n-placeholder="modal.hfHubPathPlaceholder" placeholder="/home/ubuntu/hf_models/hub" autocomplete="off">
+      </div>
+
+      <div class="form-group">
+        <div class="form-label" data-i18n="modal.ggufPath">GGUF Path</div>
+        <input type="text" class="form-input" id="fGgufPath" data-i18n-placeholder="modal.ggufPathPlaceholder" placeholder="/home/ubuntu/gguf_models" autocomplete="off">
+      </div>
+
+      <div id="scanResult" style="display:none" class="scan-result"></div>
+
+      <hr class="divider">
+
       <!-- TEST RESULT PANEL -->
       <div id="testResult"></div>
 
@@ -213,8 +333,8 @@
 
   <!-- neutralino.js must be loaded before i18n.js and main.js -->
   <script src="/js/neutralino.js"></script>
-  <script src="/js/i18n.js?v=6"></script>
-  <script src="/js/main.js?v=6"></script>
+  <script src="/js/i18n.js?v=12"></script>
+  <script src="/js/main.js?v=12"></script>
 </body>
 
 </html>
