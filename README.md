@@ -21,7 +21,7 @@ newgrp docker
 
 ## Build
 
-* Requirements - Node >= 22.22, Go >= 1.22
+* Requirements - Node >= 22.22, Go >= 1.24
 ```sh
 neu update
 make
