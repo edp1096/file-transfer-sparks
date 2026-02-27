@@ -384,9 +384,14 @@ async function bkBackupDocker(sel) {
         const fname = item.name.replace(/[/:]/g, '_') + '.tar';
         const outPath = backupDir + '/' + fname;
         bkLog('Backing up: ' + item.name + '  →  ' + fname);
-        // docker commands run as SSH user (must be in docker group); no sudo needed
-        const res = await execSSH(BK.srv, `docker save -o ${bq(outPath)} ${bq(item.name)}`);
-        if (res.stdErr && res.stdErr.trim()) bkLog(res.stdErr.trim(), 'warn');
+        if (BK.srv.useSudo) {
+            // sudo bash -c '...' so both docker and file write run under root
+            const res = await execSSH(BK.srv, wrapSudo(BK.srv, `docker save ${bq(item.name)} > ${bq(outPath)}`));
+            if (res.stdErr && res.stdErr.trim()) bkLog(res.stdErr.trim(), 'warn');
+        } else {
+            const res = await execSSH(BK.srv, `docker save -o ${bq(outPath)} ${bq(item.name)}`);
+            if (res.stdErr && res.stdErr.trim()) bkLog(res.stdErr.trim(), 'warn');
+        }
         bkLog('  done: ' + item.name, 'ok');
     }
 }
@@ -398,10 +403,16 @@ async function bkRestoreDocker(sel) {
         if (!BK.busy) break;
         const tarPath = backupDir + '/' + item.name;
         bkLog('Restoring: ' + item.name);
-        // docker commands run as SSH user (must be in docker group); no sudo needed
-        const res = await execSSH(BK.srv, `docker load -i ${bq(tarPath)}`);
-        if (res.stdOut && res.stdOut.trim()) bkLog(res.stdOut.trim());
-        if (res.stdErr && res.stdErr.trim()) bkLog(res.stdErr.trim(), 'warn');
+        if (BK.srv.useSudo) {
+            // sudo bash -c '...' so both file read and docker load run under root
+            const res = await execSSH(BK.srv, wrapSudo(BK.srv, `docker load -i ${bq(tarPath)}`));
+            if (res.stdOut && res.stdOut.trim()) bkLog(res.stdOut.trim());
+            if (res.stdErr && res.stdErr.trim()) bkLog(res.stdErr.trim(), 'warn');
+        } else {
+            const res = await execSSH(BK.srv, `docker load -i ${bq(tarPath)}`);
+            if (res.stdOut && res.stdOut.trim()) bkLog(res.stdOut.trim());
+            if (res.stdErr && res.stdErr.trim()) bkLog(res.stdErr.trim(), 'warn');
+        }
         bkLog('  done: ' + item.name, 'ok');
     }
 }
