@@ -1,5 +1,5 @@
 .PHONY: all dist ssh-client-dist neu-build package \
-        pkg-win-x64 pkg-linux-x64 pkg-linux-arm64 clean
+        pkg-win-x64 pkg-linux-x64 pkg-linux-arm64 clean release
 
 SSH_DIR  := ssh-client
 SSH_BIN  := $(SSH_DIR)/bin
@@ -20,6 +20,22 @@ sync-version:
 	d.version='$(VERSION)';\
 	fs.writeFileSync(f,JSON.stringify(d,null,2)+'\n');\
 	console.log('  -> neutralino.config.json version: $(VERSION)');"
+
+release:
+	@node -e "\
+	const v='$(V)',desc='$(DESC)';\
+	if(!v){console.error('Usage: make release V=v1.2.3 DESC=\"description\"');process.exit(1);}\
+	if(!desc){console.error('DESC is required. Usage: make release V=v1.2.3 DESC=\"description\"');process.exit(1);}\
+	const fs=require('fs'),f='neutralino.config.json';\
+	const d=JSON.parse(fs.readFileSync(f,'utf8'));\
+	d.version=v.replace(/^v/,'');\
+	fs.writeFileSync(f,JSON.stringify(d,null,2)+'\n');\
+	console.log('[release] '+v+': neutralino.config.json updated');"
+	git add neutralino.config.json
+	-git commit -m "version $(V)"
+	git tag -a $(V) -m "$(DESC)"
+	git push origin HEAD --tags
+	@echo "[release] done: $(V)"
 
 dist: sync-version ssh-client-dist neu-build package
 
