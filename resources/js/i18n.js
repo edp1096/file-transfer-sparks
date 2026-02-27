@@ -25,6 +25,9 @@ const _LANGS = {
     "panel.loading": "Loading...",
     "panel.connecting": "Connecting...",
     "panel.emptyDir": "Empty directory",
+    "panel.dockerMode": "Docker Images",
+    "panel.filesMode": "File Browser",
+    "panel.delete": "Delete selected",
 
     // Progress
     "progress.transferring": "Transferring...",
@@ -40,6 +43,7 @@ const _LANGS = {
     "status.checkEnv": "Checking remote environment...",
     "status.recvWait": "Waiting for receiver on {alias}...",
     "status.transferring": "{src} \u2192 {dst} transferring...",
+    "status.deleting": "Deleting...",
     "status.cancelling": "Cancelling transfer...",
     "status.cancelled": "Transfer cancelled",
     "status.transferError": "Transfer error: {msg}",
@@ -50,6 +54,9 @@ const _LANGS = {
     "status.connFail": "{alias} connection failed",
 
     // Toast
+    "toast.selectDockerImages": "Select Docker images to transfer",
+    "toast.deleteSuccess": "Deleted {count} item(s)",
+    "toast.deleteFail": "Delete failed: {msg}",
     "toast.saveFail": "Save failed: {msg}",
     "toast.enterHostUser": "Enter host and username first",
     "toast.selectBothServers": "Select both servers",
@@ -115,6 +122,8 @@ const _LANGS = {
 
     // Confirm
     "confirm.deleteServer": "Delete \"{alias}\"?",
+    "confirm.deleteFiles": "Delete {count} item(s) from {path}?",
+    "confirm.dockerRmi": "Remove {count} Docker image(s) from {alias}?",
 
     // Time
     "time.sec": "{s}s",
@@ -210,6 +219,9 @@ const _LANGS = {
     "panel.loading": "\ub85c\ub529 \uc911...",
     "panel.connecting": "\uc5f0\uacb0 \uc911...",
     "panel.emptyDir": "\ube48 \ub514\ub809\ud1a0\ub9ac",
+    "panel.dockerMode": "Docker \uc774\ubbf8\uc9c0",
+    "panel.filesMode": "\ud30c\uc77c \ud0d0\uc0c9\uae30",
+    "panel.delete": "\uc120\ud0dd \uc0ad\uc81c",
 
     // Progress
     "progress.transferring": "\uc804\uc1a1 \uc911...",
@@ -225,6 +237,7 @@ const _LANGS = {
     "status.checkEnv": "\uc6d0\uaca9 \ud658\uacbd \ud655\uc778 \uc911...",
     "status.recvWait": "{alias}\uc5d0\uc11c \uc218\uc2e0 \ub300\uae30...",
     "status.transferring": "{src} \u2192 {dst} \uc804\uc1a1 \uc911...",
+    "status.deleting": "\uc0ad\uc81c \uc911...",
     "status.cancelling": "\uc804\uc1a1 \ucde8\uc18c \uc911...",
     "status.cancelled": "\uc804\uc1a1 \ucde8\uc18c\ub428",
     "status.transferError": "\uc804\uc1a1 \uc624\ub958: {msg}",
@@ -235,6 +248,9 @@ const _LANGS = {
     "status.connFail": "{alias} \uc5f0\uacb0 \uc2e4\ud328",
 
     // Toast
+    "toast.selectDockerImages": "\uc804\uc1a1\ud560 Docker \uc774\ubbf8\uc9c0\ub97c \uc120\ud0dd\ud558\uc138\uc694",
+    "toast.deleteSuccess": "{count}\uac1c \ud56d\ubaa9 \uc0ad\uc81c\ub428",
+    "toast.deleteFail": "\uc0ad\uc81c \uc2e4\ud328: {msg}",
     "toast.saveFail": "\uc800\uc7a5 \uc2e4\ud328: {msg}",
     "toast.enterHostUser": "\ud638\uc2a4\ud2b8\uc640 \uc0ac\uc6a9\uc790\uba85\uc744 \uba3c\uc800 \uc785\ub825\ud558\uc138\uc694",
     "toast.selectBothServers": "\uc591\ucabd \uc11c\ubc84\ub97c \ubaa8\ub450 \uc120\ud0dd\ud558\uc138\uc694",
@@ -300,6 +316,8 @@ const _LANGS = {
 
     // Confirm
     "confirm.deleteServer": "\"{alias}\"\ub97c \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?",
+    "confirm.deleteFiles": "{path} \uc5d0\uc11c {count}\uac1c \ud56d\ubaa9\uc744 \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?",
+    "confirm.dockerRmi": "{alias} \uc5d0\uc11c Docker \uc774\ubbf8\uc9c0 {count}\uac1c\ub97c \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?",
 
     // Time
     "time.sec": "{s}\ucd08",
