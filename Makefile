@@ -6,10 +6,22 @@ SSH_BIN  := $(SSH_DIR)/bin
 DIST_DIR := dist/file-transfer-sparks
 OUT_DIR  := dist
 
+GIT_TAG  := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+VERSION  := $(patsubst v%,%,$(GIT_TAG))
+
 # ──────────────────────────────────────────────────────────────
 all: dist
 
-dist: ssh-client-dist neu-build package
+sync-version:
+	@echo "[version] $(VERSION)"
+	@node -e "\
+	const fs=require('fs'), f='neutralino.config.json';\
+	const d=JSON.parse(fs.readFileSync(f,'utf8'));\
+	d.version='$(VERSION)';\
+	fs.writeFileSync(f,JSON.stringify(d,null,2)+'\n');\
+	console.log('  -> neutralino.config.json version: $(VERSION)');"
+
+dist: sync-version ssh-client-dist neu-build package
 
 ssh-client-dist:
 	$(MAKE) -C $(SSH_DIR) dist

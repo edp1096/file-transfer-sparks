@@ -1,6 +1,6 @@
 {
   "applicationId": "com.filetransfer.sparks",
-  "version": "1.0.0",
+  "version": "0.0.3",
   "defaultMode": "window",
   "port": 0,
   "documentRoot": "/resources/",
