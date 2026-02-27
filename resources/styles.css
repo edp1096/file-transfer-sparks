@@ -74,6 +74,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .is-dir .file-name-text{color:var(--dir);font-weight:500}
 .is-link .file-name-text{color:var(--warn)}
 .file-size-cell,.file-mtime-cell{color:var(--text2);font-family:'Cascadia Code','Consolas',monospace;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dir-sz-pending{color:var(--text3)}
 .panel-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;color:var(--text3);gap:8px;padding:32px;text-align:center;height:100%}
 .panel-state .state-icon{font-size:36px}
 .panel-state.err{color:var(--err)}

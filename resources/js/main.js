@@ -26,6 +26,9 @@ const S = {
     // Shift-click anchor
     lastClickA: -1,
     lastClickB: -1,
+    // Dir size load token (cancels stale du results on navigation)
+    panelTokenA: 0,
+    panelTokenB: 0,
 };
 
 // ============================================================
@@ -226,6 +229,36 @@ async function loadPanelDiskInfo(side) {
 // ============================================================
 // UI — FILE PANELS
 // ============================================================
+async function loadDirSizes(side, tok) {
+    const srv = side === 'A' ? S.srvA : S.srvB;
+    const path = side === 'A' ? S.pathA : S.pathB;
+    const files = side === 'A' ? S.filesA : S.filesB;
+    const dirs = files.filter(f => f.isDir && !f.isLink);
+    if (!dirs.length || !srv) return;
+
+    const paths = dirs.map(f => bq(joinPath(path, f.name))).join(' ');
+    try {
+        const res = await execSSH(srv, `du -sb ${paths} 2>/dev/null`);
+        if (tok !== (side === 'A' ? S.panelTokenA : S.panelTokenB)) return; // navigated away
+        const sizeMap = {};
+        for (const line of (res.stdOut || '').split('\n')) {
+            const tab = line.indexOf('\t');
+            if (tab < 0) continue;
+            const bytes = parseInt(line.substring(0, tab).trim());
+            const name = line.substring(tab + 1).trim().split('/').pop();
+            if (name && !isNaN(bytes)) sizeMap[name] = bytes;
+        }
+        // Update file entries in-place so sort and display both use the same data
+        files.forEach(f => {
+            if (f.isDir && sizeMap[f.name] != null) {
+                f.size = sizeMap[f.name];
+                f.dirSizeLoaded = true;
+            }
+        });
+        renderList(side); // re-render: re-sorts if sort.col==='size', updates display
+    } catch (_) {}
+}
+
 async function loadPanel(side) {
     const mode = side === 'A' ? S.panelModeA : S.panelModeB;
     if (mode === 'docker') {
@@ -250,6 +283,8 @@ async function loadPanel(side) {
         if (side === 'A') S.filesA = files; else S.filesB = files;
         renderList(side);
         updateSelInfo();
+        const tok = side === 'A' ? ++S.panelTokenA : ++S.panelTokenB;
+        loadDirSizes(side, tok); // fire-and-forget
     } catch (e) {
         listEl.innerHTML = `<div class="panel-state err"><div class="state-icon">⚠</div><div class="state-msg">${escHtml(e.message || String(e))}</div></div>`;
     }
@@ -293,7 +328,7 @@ function renderList(side) {
         return `<div class="${cls}" data-name="${escHtml(f.name)}" data-isdir="${f.isDir ? 1 : 0}" data-idx="${idx}">
       <input type="checkbox" ${sel.has(f.name) ? 'checked' : ''}>
       <div class="file-name-cell"><span class="file-icon">${icon}</span><span class="file-name-text" title="${escHtml(f.name)}">${escHtml(f.name)}</span></div>
-      <div class="file-size-cell">${f.isDir ? '' : fmtBytes(f.size)}</div>
+      <div class="file-size-cell">${f.isDir ? (f.dirSizeLoaded ? fmtBytes(f.size) : '<span class="dir-sz-pending">…</span>') : fmtBytes(f.size)}</div>
       <div class="file-mtime-cell">${fmtMtime(f.mtime)}</div>
     </div>`;
     }).join('');
@@ -564,6 +599,15 @@ async function deleteSelected(side) {
 // ============================================================
 // UI — SERVER SELECTS
 // ============================================================
+function syncSelectDisabled() {
+    const sa = document.getElementById('selectA');
+    const sb = document.getElementById('selectB');
+    sa.querySelectorAll('option').forEach(o => o.disabled = false);
+    sb.querySelectorAll('option').forEach(o => o.disabled = false);
+    if (sb.value) { const o = sa.querySelector(`option[value="${sb.value}"]`); if (o) o.disabled = true; }
+    if (sa.value) { const o = sb.querySelector(`option[value="${sa.value}"]`); if (o) o.disabled = true; }
+}
+
 function populateSelects() {
     const opts = '<option value="">' + escHtml(t('sel.serverSelect')) + '</option>' +
         S.servers.map(s => `<option value="${s.id}">${escHtml(s.alias)}</option>`).join('');
@@ -571,6 +615,7 @@ function populateSelects() {
     const pa = sa.value, pb = sb.value;
     sa.innerHTML = opts; sb.innerHTML = opts;
     sa.value = pa; sb.value = pb;
+    syncSelectDisabled();
     populateBkSelect();
 }
 
@@ -580,6 +625,7 @@ async function onSelectServer(side) {
 
     if (side === 'A') { S.srvA = srv; S.pathA = null; S.filesA = []; S.selA.clear(); S.panelModeA = 'files'; S.dockerA = []; }
     else { S.srvB = srv; S.pathB = null; S.filesB = []; S.selB.clear(); S.panelModeB = 'files'; S.dockerB = []; }
+    syncSelectDisabled();
 
     const dot = document.getElementById('dot' + side);
     const editBtn = document.getElementById('btnEdit' + side);
@@ -893,6 +939,14 @@ Neutralino.events.on('ready', async () => {
 
     populateSelects();
 
+    // Restore saved sort state
+    try {
+        const saved = JSON.parse(await Neutralino.storage.getData('panelSort'));
+        if (saved?.A?.col) { S.sortA.col = saved.A.col; S.sortA.dir = saved.A.dir === -1 ? -1 : 1; }
+        if (saved?.B?.col) { S.sortB.col = saved.B.col; S.sortB.dir = saved.B.dir === -1 ? -1 : 1; }
+        updateSortHeader('A'); updateSortHeader('B');
+    } catch {}
+
     attachPanelHandlers('A');
     attachPanelHandlers('B');
 
@@ -911,6 +965,10 @@ Neutralino.events.on('ready', async () => {
     document.getElementById('btnCancel').onclick = cancelTransfer;
 
     // ── Column sort headers ───────────────────────────────────
+    const SORT_KEY = 'panelSort';
+    async function saveSortState() {
+        try { await Neutralino.storage.setData(SORT_KEY, JSON.stringify({ A: S.sortA, B: S.sortB })); } catch {}
+    }
     ['A', 'B'].forEach(side => {
         document.getElementById('listHeader' + side).querySelectorAll('.col-wrap').forEach(wrap => {
             wrap.addEventListener('click', e => {
@@ -922,6 +980,7 @@ Neutralino.events.on('ready', async () => {
                 else { sort.col = sortEl.dataset.col; sort.dir = 1; }
                 renderList(side);
                 updateSortHeader(side);
+                saveSortState();
             });
         });
         updateSortHeader(side);
