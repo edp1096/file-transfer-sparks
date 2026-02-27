@@ -433,13 +433,22 @@ async function setLang(lang) {
  * Initialize i18n: load persisted language, apply to DOM.
  */
 async function initI18n() {
+  let hasSaved = false;
   try {
     const saved = await Neutralino.storage.getData('lang');
-    if (saved && _LANGS[saved]) _currentLang = saved;
-  } catch (_) {
-    // First run or storage unavailable — use default 'en'
+    if (saved && _LANGS[saved]) { _currentLang = saved; hasSaved = true; }
+  } catch (_) {}
+
+  if (!hasSaved) {
+    // 첫 실행 — OS/브라우저 로케일에서 기본 언어 감지
+    // navigator.language 예: 'ko-KR', 'en-US', 'zh-CN', 'ja-JP'
+    const primary = (navigator.language || 'en').split('-')[0].toLowerCase();
+    _currentLang = _LANGS[primary] ? primary : 'en';
   }
+
   document.documentElement.lang = _currentLang;
+  const sel = document.getElementById('langSelect');
+  if (sel) sel.value = _currentLang;
   applyI18n();
 }
 
