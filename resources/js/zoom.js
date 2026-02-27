@@ -50,7 +50,7 @@ const ZOOM = {
     level: 1.0,
     min: 0.5,
     max: 2.0,
-    step: 0.1,
+    step: 0.05,
     key: 'appZoom'
 };
 
@@ -77,12 +77,12 @@ async function zoomSave() {
 }
 
 function zoomIn() {
-    ZOOM.level = Math.min(ZOOM.max, parseFloat((ZOOM.level + ZOOM.step).toFixed(1)));
+    ZOOM.level = Math.min(ZOOM.max, parseFloat((ZOOM.level + ZOOM.step).toFixed(2)));
     zoomApply(); zoomSave();
 }
 
 function zoomOut() {
-    ZOOM.level = Math.max(ZOOM.min, parseFloat((ZOOM.level - ZOOM.step).toFixed(1)));
+    ZOOM.level = Math.max(ZOOM.min, parseFloat((ZOOM.level - ZOOM.step).toFixed(2)));
     zoomApply(); zoomSave();
 }
 
