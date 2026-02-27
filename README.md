@@ -11,10 +11,11 @@ You can copy or backup/restore docker images, models to another DGX Spark or ext
 
 ## Requirements
 
-* utils - tar, nc, pv
-* Make sure user in `docker` group
+* tar, nc, pv are installed
+* Set user in `docker` group
 ```sh
 sudo usermod -aG docker $USER
+newgrp docker
 ```
 
 
