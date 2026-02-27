@@ -124,6 +124,8 @@ const _LANGS = {
     "confirm.deleteServer": "Delete \"{alias}\"?",
     "confirm.deleteFiles": "Delete {count} item(s) from {path}?",
     "confirm.dockerRmi": "Remove {count} Docker image(s) from {alias}?",
+    "confirm.bkDeleteSrv": "Delete {count} item(s) from server?",
+    "confirm.bkDeleteBkup": "Delete {count} backup file(s) from SSD?",
 
     // Time
     "time.sec": "{s}s",
@@ -201,6 +203,7 @@ const _LANGS = {
     "backup.noGgufPath": "GGUF path not configured",
     "backup.clearLog": "Clear",
     "backup.ssdNotMounted": "SSD is not mounted. Mount it first.",
+    "backup.deleteSelected": "Delete",
   },
 
   ko: {
@@ -321,6 +324,8 @@ const _LANGS = {
     "confirm.deleteServer": "\"{alias}\"\ub97c \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?",
     "confirm.deleteFiles": "{path} \uc5d0\uc11c {count}\uac1c \ud56d\ubaa9\uc744 \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?",
     "confirm.dockerRmi": "{alias} \uc5d0\uc11c Docker \uc774\ubbf8\uc9c0 {count}\uac1c\ub97c \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?",
+    "confirm.bkDeleteSrv": "\uc11c\ubc84\uc5d0\uc11c {count}\uac1c \ud56d\ubaa9\uc744 \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?",
+    "confirm.bkDeleteBkup": "SSD\uc5d0\uc11c \ubc31\uc5c5 \ud30c\uc77c {count}\uac1c\ub97c \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?",
 
     // Time
     "time.sec": "{s}\ucd08",
@@ -398,6 +403,7 @@ const _LANGS = {
     "backup.noGgufPath": "GGUF \uacbd\ub85c \uc124\uc815 \uc5c6\uc74c",
     "backup.clearLog": "\uc9c0\uc6b0\uae30",
     "backup.ssdNotMounted": "SSD\uac00 \ub9c8\uc6b4\ud2b8\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uba3c\uc800 \ub9c8\uc6b4\ud2b8 \ud558\uc138\uc694.",
+    "backup.deleteSelected": "\uc0ad\uc81c",
   }
 };
 

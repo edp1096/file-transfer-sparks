@@ -44,19 +44,15 @@ function bkUpdateState() {
     }
 
     noServer.style.display = 'none';
-    const hasSsd = !!(BK.srv.ssdDevice || BK.srv.ssdMount);
-    if (!hasSsd) {
-        noSsd.style.display = '';
-        content.style.display = 'none';
-        mountBar.style.display = 'none';
-        return;
-    }
-
     noSsd.style.display = 'none';
     content.style.display = '';
-    mountBar.style.display = '';
+
+    const hasSsd = !!(BK.srv.ssdDevice || BK.srv.ssdMount);
+    mountBar.style.display = hasSsd ? '' : 'none';
+
     bkRenderList();
     bkRenderBkupList();
+    if (!hasSsd) bkRenderBkupPlaceholder(t('backup.noSsdConfig'));
 }
 
 async function bkFetchDiskInfo() {
@@ -157,7 +153,15 @@ async function bkUnmount() {
         const cmd = `sudo umount ${bq(BK.srv.ssdMount)}`;
         const wrapped = BK.srv.useSudo ? wrapSudo(BK.srv, cmd) : cmd;
         const res = await execSSH(BK.srv, wrapped);
-        if ((res.stdErr || '').trim()) bkLog(res.stdErr.trim(), 'warn');
+        const errMsg = (res.stdErr || '').trim();
+        if (errMsg) bkLog(errMsg, 'warn');
+        if (res.exitCode !== 0) {
+            const msg = errMsg || 'umount failed';
+            bkLog(t('backup.unmountFail', { msg }), 'err');
+            toast(t('backup.unmountFail', { msg: msg.slice(0, 80) }), 'err');
+            await bkCheckMount();
+            return;
+        }
         await bkCheckMount();
         BK.bkupItems = [];
         bkRenderBkupList();
@@ -286,8 +290,12 @@ function bkUpdateActionBtns() {
     const hasBkupSel = BK.bkupItems.some(i => i.selected);
     const backupBtn = document.getElementById('btnBkBackup');
     const restoreBtn = document.getElementById('btnBkRestore');
+    const deleteBtn = document.getElementById('btnBkDelete');
+    const deleteBkupBtn = document.getElementById('btnBkDeleteBkup');
     if (backupBtn) backupBtn.disabled = !hasSel || BK.busy;
     if (restoreBtn) restoreBtn.disabled = !hasBkupSel || BK.busy;
+    if (deleteBtn) deleteBtn.disabled = !hasSel || BK.busy;
+    if (deleteBkupBtn) deleteBkupBtn.disabled = !hasBkupSel || BK.busy;
 }
 
 // ── Backup / Restore execution ──────────────────────────────
@@ -328,6 +336,7 @@ async function bkRunBackup() {
         }
         bkLog('=== Backup complete ===', 'ok');
         toast(t('backup.backupDone'), 'ok');
+        await bkLoadBackupList();
     } catch (e) {
         bkLog('Error: ' + (e.message || String(e)), 'err');
         toast(t('backup.opFail', { msg: e.message || String(e) }), 'err');
@@ -363,6 +372,113 @@ async function bkRunRestore() {
         }
         bkLog('=== Restore complete ===', 'ok');
         toast(t('backup.restoreDone'), 'ok');
+        await bkLoadList();
+    } catch (e) {
+        bkLog('Error: ' + (e.message || String(e)), 'err');
+        toast(t('backup.opFail', { msg: e.message || String(e) }), 'err');
+    } finally {
+        bkSetBusy(false);
+    }
+}
+
+// ── Delete server items ──────────────────────────────────────
+
+async function bkRunDeleteServer() {
+    if (BK.busy || !BK.srv) return;
+    const sel = BK.items.filter(i => i.selected);
+    if (!sel.length) { toast(t('backup.selectItems'), 'warn'); return; }
+
+    const confirmMsg = BK.subTab === 'docker'
+        ? t('confirm.dockerRmi', { count: sel.length, alias: BK.srv.alias })
+        : t('confirm.bkDeleteSrv', { count: sel.length });
+    if (!confirm(confirmMsg)) return;
+
+    bkSetBusy(true);
+    bkLog('=== Delete started ===', 'ok');
+
+    try {
+        if (BK.subTab === 'docker') {
+            await bkDeleteServerDocker(sel);
+        } else if (BK.subTab === 'hf') {
+            await bkDeleteServerHF(sel);
+        } else {
+            await bkDeleteServerGGUF(sel);
+        }
+        bkLog('=== Delete complete ===', 'ok');
+        toast(t('toast.deleteSuccess', { count: sel.length }), 'ok');
+        await bkLoadList();
+    } catch (e) {
+        bkLog('Error: ' + (e.message || String(e)), 'err');
+        toast(t('backup.opFail', { msg: e.message || String(e) }), 'err');
+    } finally {
+        bkSetBusy(false);
+    }
+}
+
+async function bkDeleteServerDocker(sel) {
+    for (const item of sel) {
+        bkLog('Removing Docker image: ' + item.name);
+        const res = await execSSH(BK.srv, `docker rmi ${bq(item.name)}`);
+        if (res.stdOut && res.stdOut.trim()) bkLog(res.stdOut.trim());
+        if (res.stdErr && res.stdErr.trim()) bkLog(res.stdErr.trim(), 'warn');
+        bkLog('  done: ' + item.name, 'ok');
+    }
+}
+
+async function bkDeleteServerHF(sel) {
+    if (!BK.srv.hfHubPath) throw new Error(t('backup.noHfPath'));
+    for (const item of sel) {
+        bkLog('Deleting HF model: ' + item.name);
+        const cmd = `rm -rf ${bq(BK.srv.hfHubPath + '/' + item.name)}`;
+        const res = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, cmd) : cmd);
+        if (res.stdErr && res.stdErr.trim()) bkLog(res.stdErr.trim(), 'warn');
+        bkLog('  done: ' + item.name, 'ok');
+    }
+}
+
+async function bkDeleteServerGGUF(sel) {
+    if (!BK.srv.ggufPath) throw new Error(t('backup.noGgufPath'));
+    for (const item of sel) {
+        bkLog('Deleting GGUF: ' + item.name);
+        const cmd = `rm ${bq(BK.srv.ggufPath + '/' + item.name)}`;
+        const res = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, cmd) : cmd);
+        if (res.stdErr && res.stdErr.trim()) bkLog(res.stdErr.trim(), 'warn');
+        bkLog('  done: ' + item.name, 'ok');
+    }
+}
+
+// ── Delete SSD backup items ──────────────────────────────────
+
+async function bkRunDeleteBkup() {
+    if (BK.busy || !BK.srv) return;
+    const sel = BK.bkupItems.filter(i => i.selected);
+    if (!sel.length) { toast(t('backup.selectItems'), 'warn'); return; }
+    if (!BK.srv.ssdMount) { toast(t('backup.noMountPoint'), 'warn'); return; }
+
+    if (!confirm(t('confirm.bkDeleteBkup', { count: sel.length }))) return;
+
+    bkSetBusy(true);
+    bkLog('=== Delete backup started ===', 'ok');
+
+    try {
+        for (const item of sel) {
+            let filePath;
+            if (BK.subTab === 'docker') {
+                filePath = BK.srv.ssdMount + '/docker_backup/' + item.name;
+            } else if (BK.subTab === 'hf') {
+                filePath = BK.srv.ssdMount + '/huggingface_backup/' + item.name + '.tar';
+            } else {
+                filePath = BK.srv.ssdMount + '/gguf_backup/' + item.name;
+            }
+            bkLog('Deleting backup: ' + item.name);
+            const cmd = `rm ${bq(filePath)}`;
+            const res = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, cmd) : cmd);
+            if (res.stdErr && res.stdErr.trim()) bkLog(res.stdErr.trim(), 'warn');
+            bkLog('  done: ' + item.name, 'ok');
+        }
+        bkLog('=== Delete backup complete ===', 'ok');
+        toast(t('toast.deleteSuccess', { count: sel.length }), 'ok');
+        await bkLoadBackupList();
     } catch (e) {
         bkLog('Error: ' + (e.message || String(e)), 'err');
         toast(t('backup.opFail', { msg: e.message || String(e) }), 'err');
@@ -430,8 +546,8 @@ async function bkBackupHF(sel) {
         if (!BK.busy) break;
         const tarPath = backupDir + '/' + item.name + '.tar';
         bkLog('Backing up: ' + item.name);
-        const chk = await execSSH(BK.srv, `test -f ${bq(tarPath)} && echo EXISTS || echo NEW`);
-        if ((chk.stdOut || '').includes('EXISTS')) {
+        const chk = await execSSH(BK.srv, `test -f ${bq(tarPath)}`);
+        if (chk.exitCode === 0) {
             bkLog('  skip (already exists): ' + item.name, 'warn');
             continue;
         }
@@ -455,8 +571,8 @@ async function bkRestoreHF(sel) {
         const tarPath = backupDir + '/' + item.name + '.tar';
         const destDir = BK.srv.hfHubPath + '/' + item.name;
         bkLog('Restoring: ' + item.name);
-        const chk = await execSSH(BK.srv, `test -d ${bq(destDir)} && echo EXISTS || echo NEW`);
-        if ((chk.stdOut || '').includes('EXISTS')) {
+        const chk = await execSSH(BK.srv, `test -d ${bq(destDir)}`);
+        if (chk.exitCode === 0) {
             bkLog('  skip (already exists): ' + item.name, 'warn');
             continue;
         }
@@ -481,8 +597,8 @@ async function bkBackupGGUF(sel) {
         const src = BK.srv.ggufPath + '/' + item.name;
         const dst = backupDir + '/' + item.name;
         bkLog('Backing up: ' + item.name);
-        const chk = await execSSH(BK.srv, `test -f ${bq(dst)} && echo EXISTS || echo NEW`);
-        if ((chk.stdOut || '').includes('EXISTS')) {
+        const chk = await execSSH(BK.srv, `test -f ${bq(dst)}`);
+        if (chk.exitCode === 0) {
             bkLog('  skip (already exists): ' + item.name, 'warn');
             continue;
         }
@@ -507,8 +623,8 @@ async function bkRestoreGGUF(sel) {
         const src = backupDir + '/' + item.name;
         const dst = BK.srv.ggufPath + '/' + item.name;
         bkLog('Restoring: ' + item.name);
-        const chk = await execSSH(BK.srv, `test -f ${bq(dst)} && echo EXISTS || echo NEW`);
-        if ((chk.stdOut || '').includes('EXISTS')) {
+        const chk = await execSSH(BK.srv, `test -f ${bq(dst)}`);
+        if (chk.exitCode === 0) {
             bkLog('  skip (already exists): ' + item.name, 'warn');
             continue;
         }
@@ -645,6 +761,8 @@ async function bkLogToggle() {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnBkToggleLog').addEventListener('click', bkLogToggle);
+    document.getElementById('btnBkDelete').addEventListener('click', bkRunDeleteServer);
+    document.getElementById('btnBkDeleteBkup').addEventListener('click', bkRunDeleteBkup);
 });
 
 Neutralino.events.on('ready', async () => {
