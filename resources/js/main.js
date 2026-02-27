@@ -517,6 +517,27 @@ async function startDockerTransfer(dir) {
             `docker inspect --format='{{.Size}}' ${images.map(bq).join(' ')} 2>/dev/null | awk '{s+=$1}END{print s+0}'`);
         S.tBytes = parseInt((inspectRes.stdOut || '0').trim()) || 0;
 
+        // Step 1.5: Check available disk space on both sides
+        // Sender needs ~1x image size (docker save writes to /var/lib/docker/tmp)
+        // Receiver needs ~2x image size (docker load tmp + final image storage)
+        if (S.tBytes > 0) {
+            setStatus(t('status.checkSpace'));
+            const [srcAvail, dstAvail] = await Promise.all([
+                checkDockerDiskSpace(srcSrv),
+                checkDockerDiskSpace(dstSrv)
+            ]);
+            if (srcAvail > 0 && srcAvail < S.tBytes) {
+                resetTransfer(); hideProgress(); setStatus(t('status.ready'));
+                toast(t('toast.dockerNoSpaceSrc', { alias: srcSrv.alias, need: fmtBytes(S.tBytes), avail: fmtBytes(srcAvail) }), 'err');
+                return;
+            }
+            if (dstAvail > 0 && dstAvail < S.tBytes * 2) {
+                resetTransfer(); hideProgress(); setStatus(t('status.ready'));
+                toast(t('toast.dockerNoSpaceDst', { alias: dstSrv.alias, need: fmtBytes(S.tBytes * 2), avail: fmtBytes(dstAvail) }), 'err');
+                return;
+            }
+        }
+
         // Step 2: Check pv availability
         setStatus(t('status.checkEnv'));
         const hasPv = await checkPv(srcSrv);

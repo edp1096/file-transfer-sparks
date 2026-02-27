@@ -117,6 +117,19 @@ async function checkPv(srv) {
     }
 }
 
+async function checkDockerDiskSpace(srv) {
+    // Returns available bytes on the filesystem containing /var/lib/docker.
+    // Falls back to / if /var/lib/docker does not exist yet.
+    // Returns 0 if the check fails (caller should skip the guard).
+    try {
+        const res = await execSSH(srv,
+            `df -PB1 /var/lib/docker 2>/dev/null | awk 'NR==2{print $4}' || df -PB1 / | awk 'NR==2{print $4}'`);
+        return parseInt((res.stdOut || '0').trim()) || 0;
+    } catch (_) {
+        return 0;
+    }
+}
+
 async function startTransfer(dir) {
     if (S.busy) return;
 

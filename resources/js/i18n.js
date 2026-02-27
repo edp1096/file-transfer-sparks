@@ -52,9 +52,12 @@ const _LANGS = {
     "status.connecting": "{alias} connecting...",
     "status.connected": "{alias} connected",
     "status.connFail": "{alias} connection failed",
+    "status.checkSpace": "Checking disk space...",
 
     // Toast
     "toast.selectDockerImages": "Select Docker images to transfer",
+    "toast.dockerNoSpaceSrc": "Sender ({alias}): insufficient disk space — need {need}, available {avail}",
+    "toast.dockerNoSpaceDst": "Receiver ({alias}): insufficient disk space — need {need}, available {avail}",
     "toast.deleteSuccess": "Deleted {count} item(s)",
     "toast.deleteFail": "Delete failed: {msg}",
     "toast.saveFail": "Save failed: {msg}",
@@ -252,9 +255,12 @@ const _LANGS = {
     "status.connecting": "{alias} \uc5f0\uacb0 \uc911...",
     "status.connected": "{alias} \uc5f0\uacb0\ub428",
     "status.connFail": "{alias} \uc5f0\uacb0 \uc2e4\ud328",
+    "status.checkSpace": "\ub514\uc2a4\ud06c \uacf5\uac04 \ud655\uc778 \uc911...",
 
     // Toast
     "toast.selectDockerImages": "\uc804\uc1a1\ud560 Docker \uc774\ubbf8\uc9c0\ub97c \uc120\ud0dd\ud558\uc138\uc694",
+    "toast.dockerNoSpaceSrc": "\uc1a1\uc2e0({alias}) \ub514\uc2a4\ud06c \uacf5\uac04 \ubd80\uc871 \u2014 \ud544\uc694: {need}, \uc5ec\uc720: {avail}",
+    "toast.dockerNoSpaceDst": "\uc218\uc2e0({alias}) \ub514\uc2a4\ud06c \uacf5\uac04 \ubd80\uc871 \u2014 \ud544\uc694: {need}, \uc5ec\uc720: {avail}",
     "toast.deleteSuccess": "{count}\uac1c \ud56d\ubaa9 \uc0ad\uc81c\ub428",
     "toast.deleteFail": "\uc0ad\uc81c \uc2e4\ud328: {msg}",
     "toast.saveFail": "\uc800\uc7a5 \uc2e4\ud328: {msg}",
