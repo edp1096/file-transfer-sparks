@@ -1,4 +1,4 @@
-File/folder transfer via QSFP for 2 DGX Sparks
+Simple file/folder transfer tool for 2 DGX Sparks
 
 You can copy or backup/restore docker images, models to another DGX Spark or external storage
 
