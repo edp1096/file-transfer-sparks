@@ -62,7 +62,6 @@
     <div id="bkMountBar" class="bk-mount-bar" style="display:none">
       <div class="conn-dot" id="dotMount"></div>
       <span class="bk-mount-label" id="bkMountLabel">--</span>
-      <span class="disk-info-inline" id="bkDiskInfo"></span>
       <button class="btn btn-sm btn-primary" id="btnMount" data-i18n="backup.mount">Mount</button>
       <button class="btn btn-sm btn-danger" id="btnUnmount" data-i18n="backup.unmount" style="display:none">Unmount</button>
     </div>
@@ -147,6 +146,7 @@
             <button class="btn btn-sm btn-primary" id="btnBkBackup" data-i18n="backup.backupArrow" disabled>Backup →</button>
             <button class="btn btn-sm btn-danger" id="btnBkCancel" data-i18n="backup.cancel" style="display:none">Cancel</button>
           </div>
+          <div class="disk-info-bar" id="bkSrvDiskInfo"></div>
           <div class="bk-list" id="bkList">
             <div class="panel-state">
               <div class="state-msg" style="color:var(--text3)" data-i18n="backup.selectItems">Select items to backup / restore</div>
@@ -162,6 +162,7 @@
             <button class="btn btn-sm btn-danger" id="btnBkDeleteBkup" data-i18n="backup.deleteSelected" disabled>Delete</button>
             <button class="btn btn-sm" id="btnBkRestore" data-i18n="backup.restoreArrow" disabled>← Restore</button>
           </div>
+          <div class="disk-info-bar" id="bkDiskInfo"></div>
           <div class="bk-list" id="bkBkupList">
             <div class="panel-state">
               <div class="state-msg" style="color:var(--text3)" data-i18n="backup.selectItems">Select items to backup / restore</div>

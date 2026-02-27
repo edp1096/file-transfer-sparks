@@ -592,6 +592,7 @@ async function deleteSelected(side) {
             toast(t('toast.deleteFail', { msg: e.message || String(e) }), 'err');
         }
         await loadPanel(side);
+        loadPanelDiskInfo(side);
     }
     setStatus(t('status.readyHint'));
 }

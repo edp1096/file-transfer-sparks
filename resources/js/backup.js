@@ -10,6 +10,8 @@ const BK = {
     bkupItems: [],      // SSD backup items (for Restore)
     busy: false,
     mounted: false,     // SSD mount state (tracked to enable auto-load)
+    lastClickItems: -1, // shift-click anchor for server list
+    lastClickBkup: -1,  // shift-click anchor for backup list
 };
 
 function bkLog(msg, cls) {
@@ -53,6 +55,30 @@ function bkUpdateState() {
     bkRenderList();
     bkRenderBkupList();
     if (!hasSsd) bkRenderBkupPlaceholder(t('backup.noSsdConfig'));
+}
+
+async function bkFetchServerDiskInfo() {
+    const el = document.getElementById('bkSrvDiskInfo');
+    if (!el) return;
+    if (!BK.srv) { el.textContent = ''; return; }
+
+    let path;
+    if (BK.subTab === 'docker') {
+        path = '/';
+    } else if (BK.subTab === 'hf') {
+        path = BK.srv.hfHubPath || null;
+    } else {
+        path = BK.srv.ggufPath || null;
+    }
+    if (!path) { el.textContent = ''; return; }
+
+    try {
+        const res = await execSSH(BK.srv,
+            `df -h ${bq(path)} 2>/dev/null | awk 'NR==2{print $3 "/" $2 " (" $5 " " $4 " free) \u2014 " $6}'`);
+        el.textContent = (res.stdOut || '').trim();
+    } catch (_) {
+        el.textContent = '';
+    }
 }
 
 async function bkFetchDiskInfo() {
@@ -182,6 +208,7 @@ async function bkLoadList() {
     document.getElementById('btnBkLoad').disabled = true;
     bkRenderPlaceholder(t('backup.loading'));
     BK.items = [];
+    BK.lastClickItems = -1;
 
     try {
         if (BK.subTab === 'docker') {
@@ -198,6 +225,7 @@ async function bkLoadList() {
         document.getElementById('btnBkLoad').disabled = false;
         bkRenderList();
     }
+    bkFetchServerDiskInfo();
 }
 
 async function bkListDocker() {
@@ -266,14 +294,22 @@ function bkRenderList() {
         row.addEventListener('click', e => {
             const idx = parseInt(row.dataset.idx);
             const chk = row.querySelector('input[type="checkbox"]');
-            if (e.target === chk) {
-                BK.items[idx].selected = chk.checked;
+            if (e.shiftKey && BK.lastClickItems >= 0) {
+                const lo = Math.min(idx, BK.lastClickItems);
+                const hi = Math.max(idx, BK.lastClickItems);
+                for (let i = lo; i <= hi; i++) BK.items[i].selected = true;
+                bkRenderList();
             } else {
-                BK.items[idx].selected = !BK.items[idx].selected;
-                chk.checked = BK.items[idx].selected;
+                BK.lastClickItems = idx;
+                if (e.target === chk) {
+                    BK.items[idx].selected = chk.checked;
+                } else {
+                    BK.items[idx].selected = !BK.items[idx].selected;
+                    chk.checked = BK.items[idx].selected;
+                }
+                if (BK.items[idx].selected) row.classList.add('selected');
+                else row.classList.remove('selected');
             }
-            if (BK.items[idx].selected) row.classList.add('selected');
-            else row.classList.remove('selected');
             bkUpdateActionBtns();
         });
     });
@@ -337,6 +373,7 @@ async function bkRunBackup() {
         bkLog('=== Backup complete ===', 'ok');
         toast(t('backup.backupDone'), 'ok');
         await bkLoadBackupList();
+        bkFetchDiskInfo();
     } catch (e) {
         bkLog('Error: ' + (e.message || String(e)), 'err');
         toast(t('backup.opFail', { msg: e.message || String(e) }), 'err');
@@ -373,6 +410,7 @@ async function bkRunRestore() {
         bkLog('=== Restore complete ===', 'ok');
         toast(t('backup.restoreDone'), 'ok');
         await bkLoadList();
+        bkFetchServerDiskInfo();
     } catch (e) {
         bkLog('Error: ' + (e.message || String(e)), 'err');
         toast(t('backup.opFail', { msg: e.message || String(e) }), 'err');
@@ -407,6 +445,7 @@ async function bkRunDeleteServer() {
         bkLog('=== Delete complete ===', 'ok');
         toast(t('toast.deleteSuccess', { count: sel.length }), 'ok');
         await bkLoadList();
+        bkFetchServerDiskInfo();
     } catch (e) {
         bkLog('Error: ' + (e.message || String(e)), 'err');
         toast(t('backup.opFail', { msg: e.message || String(e) }), 'err');
@@ -479,6 +518,7 @@ async function bkRunDeleteBkup() {
         bkLog('=== Delete backup complete ===', 'ok');
         toast(t('toast.deleteSuccess', { count: sel.length }), 'ok');
         await bkLoadBackupList();
+        bkFetchDiskInfo();
     } catch (e) {
         bkLog('Error: ' + (e.message || String(e)), 'err');
         toast(t('backup.opFail', { msg: e.message || String(e) }), 'err');
@@ -500,6 +540,12 @@ async function bkBackupDocker(sel) {
         const fname = item.name.replace(/[/:]/g, '_') + '.tar';
         const outPath = backupDir + '/' + fname;
         bkLog('Backing up: ' + item.name + '  →  ' + fname);
+        const testDkBk = `test -f ${bq(outPath)} && echo __SKIP__ || echo __RUN__`;
+        const chk = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, testDkBk) : testDkBk);
+        if ((chk.stdOut || '').includes('__SKIP__')) {
+            bkLog('  skip (already exists): ' + fname, 'warn');
+            continue;
+        }
         if (BK.srv.useSudo) {
             // sudo bash -c '...' so both docker and file write run under root
             const res = await execSSH(BK.srv, wrapSudo(BK.srv, `docker save ${bq(item.name)} > ${bq(outPath)}`));
@@ -519,6 +565,18 @@ async function bkRestoreDocker(sel) {
         if (!BK.busy) break;
         const tarPath = backupDir + '/' + item.name;
         bkLog('Restoring: ' + item.name);
+        // Extract original image name from manifest.json inside tar
+        const manifestCmd = `tar xOf ${bq(tarPath)} manifest.json 2>/dev/null | grep -oP '(?<="RepoTags":\\[")[^"]+' | head -1`;
+        const mRes = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, manifestCmd) : manifestCmd);
+        const imageName = (mRes.stdOut || '').trim();
+        if (imageName) {
+            const testCmd = `docker images -q ${bq(imageName)} 2>/dev/null | grep -q . && echo __SKIP__ || echo __RUN__`;
+            const chk = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, testCmd) : testCmd);
+            if ((chk.stdOut || '').includes('__SKIP__')) {
+                bkLog('  skip (already exists): ' + imageName, 'warn');
+                continue;
+            }
+        }
         if (BK.srv.useSudo) {
             // sudo bash -c '...' so both file read and docker load run under root
             const res = await execSSH(BK.srv, wrapSudo(BK.srv, `docker load -i ${bq(tarPath)}`));
@@ -546,8 +604,9 @@ async function bkBackupHF(sel) {
         if (!BK.busy) break;
         const tarPath = backupDir + '/' + item.name + '.tar';
         bkLog('Backing up: ' + item.name);
-        const chk = await execSSH(BK.srv, `test -f ${bq(tarPath)}`);
-        if (chk.exitCode === 0) {
+        const testHFBk = `test -f ${bq(tarPath)} && echo __SKIP__ || echo __RUN__`;
+        const chk = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, testHFBk) : testHFBk);
+        if ((chk.stdOut || '').includes('__SKIP__')) {
             bkLog('  skip (already exists): ' + item.name, 'warn');
             continue;
         }
@@ -571,8 +630,9 @@ async function bkRestoreHF(sel) {
         const tarPath = backupDir + '/' + item.name + '.tar';
         const destDir = BK.srv.hfHubPath + '/' + item.name;
         bkLog('Restoring: ' + item.name);
-        const chk = await execSSH(BK.srv, `test -d ${bq(destDir)}`);
-        if (chk.exitCode === 0) {
+        const testHFRe = `test -d ${bq(destDir)} && echo __SKIP__ || echo __RUN__`;
+        const chk = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, testHFRe) : testHFRe);
+        if ((chk.stdOut || '').includes('__SKIP__')) {
             bkLog('  skip (already exists): ' + item.name, 'warn');
             continue;
         }
@@ -597,8 +657,9 @@ async function bkBackupGGUF(sel) {
         const src = BK.srv.ggufPath + '/' + item.name;
         const dst = backupDir + '/' + item.name;
         bkLog('Backing up: ' + item.name);
-        const chk = await execSSH(BK.srv, `test -f ${bq(dst)}`);
-        if (chk.exitCode === 0) {
+        const testGGBk = `test -f ${bq(dst)} && echo __SKIP__ || echo __RUN__`;
+        const chk = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, testGGBk) : testGGBk);
+        if ((chk.stdOut || '').includes('__SKIP__')) {
             bkLog('  skip (already exists): ' + item.name, 'warn');
             continue;
         }
@@ -623,8 +684,9 @@ async function bkRestoreGGUF(sel) {
         const src = backupDir + '/' + item.name;
         const dst = BK.srv.ggufPath + '/' + item.name;
         bkLog('Restoring: ' + item.name);
-        const chk = await execSSH(BK.srv, `test -f ${bq(dst)}`);
-        if (chk.exitCode === 0) {
+        const testGGRe = `test -f ${bq(dst)} && echo __SKIP__ || echo __RUN__`;
+        const chk = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, testGGRe) : testGGRe);
+        if ((chk.stdOut || '').includes('__SKIP__')) {
             bkLog('  skip (already exists): ' + item.name, 'warn');
             continue;
         }
@@ -645,6 +707,7 @@ async function bkLoadBackupList() {
     document.getElementById('btnBkLoadBkup').disabled = true;
     bkRenderBkupPlaceholder(t('backup.loading'));
     BK.bkupItems = [];
+    BK.lastClickBkup = -1;
 
     try {
         if (BK.subTab === 'docker') {
@@ -724,14 +787,22 @@ function bkRenderBkupList() {
         row.addEventListener('click', e => {
             const idx = parseInt(row.dataset.bkupIdx);
             const chk = row.querySelector('input[type="checkbox"]');
-            if (e.target === chk) {
-                BK.bkupItems[idx].selected = chk.checked;
+            if (e.shiftKey && BK.lastClickBkup >= 0) {
+                const lo = Math.min(idx, BK.lastClickBkup);
+                const hi = Math.max(idx, BK.lastClickBkup);
+                for (let i = lo; i <= hi; i++) BK.bkupItems[i].selected = true;
+                bkRenderBkupList();
             } else {
-                BK.bkupItems[idx].selected = !BK.bkupItems[idx].selected;
-                chk.checked = BK.bkupItems[idx].selected;
+                BK.lastClickBkup = idx;
+                if (e.target === chk) {
+                    BK.bkupItems[idx].selected = chk.checked;
+                } else {
+                    BK.bkupItems[idx].selected = !BK.bkupItems[idx].selected;
+                    chk.checked = BK.bkupItems[idx].selected;
+                }
+                if (BK.bkupItems[idx].selected) row.classList.add('selected');
+                else row.classList.remove('selected');
             }
-            if (BK.bkupItems[idx].selected) row.classList.add('selected');
-            else row.classList.remove('selected');
             bkUpdateActionBtns();
         });
     });
