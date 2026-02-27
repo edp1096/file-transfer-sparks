@@ -65,7 +65,7 @@ async function bkFetchDiskInfo() {
     if (!BK.srv || !BK.srv.ssdMount) { el.textContent = ''; return; }
     try {
         const res = await execSSH(BK.srv,
-            `df -h ${bq(BK.srv.ssdMount)} 2>/dev/null | awk 'NR==2{print $4 " free / " $2 " (" $5 " used)"}'`);
+            `df -h ${bq(BK.srv.ssdMount)} 2>/dev/null | awk 'NR==2{print $3 "/" $2 " (" $5 " " $4 " free)"}'`);
         const info = (res.stdOut || '').trim();
         el.textContent = info ? '\u2014 ' + info : '';
     } catch (_) {
@@ -615,6 +615,35 @@ function bkRenderBkupPlaceholder(msg) {
     const el = document.getElementById('bkBkupList');
     if (el) el.innerHTML = `<div class="panel-state"><div class="state-msg" style="color:var(--text3)">${escHtml(msg)}</div></div>`;
 }
+
+// ── Log panel toggle ─────────────────────────────────────────
+function bkLogSetCollapsed(collapsed) {
+    const log = document.getElementById('bkBottomLog');
+    const handle = document.getElementById('bkResizeHandle');
+    const btn = document.getElementById('btnBkToggleLog');
+    log.classList.toggle('log-collapsed', collapsed);
+    if (handle) handle.style.display = collapsed ? 'none' : '';
+    if (btn) btn.textContent = collapsed ? '▲' : '▼';
+}
+
+async function bkLogToggle() {
+    const collapsed = !document.getElementById('bkBottomLog').classList.contains('log-collapsed');
+    bkLogSetCollapsed(collapsed);
+    try { await Neutralino.storage.setData('bkLogVisible', collapsed ? '0' : '1'); } catch {}
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('btnBkToggleLog').addEventListener('click', bkLogToggle);
+});
+
+Neutralino.events.on('ready', async () => {
+    try {
+        const val = await Neutralino.storage.getData('bkLogVisible');
+        bkLogSetCollapsed(val === '0');
+    } catch {
+        bkLogSetCollapsed(false);
+    }
+});
 
 // ── Sub-tab switch ───────────────────────────────────────────
 function bkSwitchSubTab(tab) {

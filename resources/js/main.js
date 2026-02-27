@@ -210,7 +210,7 @@ async function loadPanelDiskInfo(side) {
     if (!el || !srv || !path) { if (el) el.textContent = ''; return; }
     try {
         const res = await execSSH(srv,
-            `df -h ${bq(path)} 2>/dev/null | awk 'NR==2{print $4 " free / " $2 " (" $5 " used) \u2014 " $6}'`);
+            `df -h ${bq(path)} 2>/dev/null | awk 'NR==2{print $3 "/" $2 " (" $5 " " $4 " free) \u2014 " $6}'`);
         el.textContent = (res.stdOut || '').trim();
     } catch (_) {
         el.textContent = '';

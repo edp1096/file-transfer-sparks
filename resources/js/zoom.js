@@ -1,3 +1,33 @@
+// ── Theme ─────────────────────────────────────────────────────────────────
+const THEME_KEY = 'appTheme';
+
+function themeApply(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const btn = document.getElementById('btnTheme');
+    if (btn) btn.textContent = theme === 'light' ? '🌙' : '☀';
+}
+
+async function themeToggle() {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    themeApply(next);
+    try { await Neutralino.storage.setData(THEME_KEY, next); } catch {}
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('btnTheme').addEventListener('click', themeToggle);
+});
+
+Neutralino.events.on('ready', async () => {
+    const osDefault = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    try {
+        const saved = await Neutralino.storage.getData(THEME_KEY);
+        themeApply(saved || osDefault);
+    } catch {
+        themeApply(osDefault);
+    }
+});
+
 // ── Zoom ──────────────────────────────────────────────────────────────────
 const ZOOM = {
     level: 1.0,
@@ -43,16 +73,6 @@ function zoomReset() {
     ZOOM.level = 1.0;
     zoomApply(); zoomSave();
 }
-
-// Ctrl+휠 브라우저 기본 확대·축소 차단
-document.addEventListener('wheel', e => {
-    if (e.ctrlKey) e.preventDefault();
-}, { passive: false });
-
-// F5 / Ctrl+R 새로고침 차단
-document.addEventListener('keydown', e => {
-    if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) e.preventDefault();
-});
 
 // 버튼 이벤트 등록
 document.addEventListener('DOMContentLoaded', () => {

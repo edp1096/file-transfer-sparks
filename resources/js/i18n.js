@@ -146,7 +146,7 @@ const _LANGS = {
     "modal.ssdMountPlaceholder": "e.g. /mnt/ssd_t5",
     "modal.ssdScan": "Scan",
     "modal.hfHubPath": "HF Hub Path",
-    "modal.hfHubPathPlaceholder": "e.g. /home/ubuntu/hf_models/hub",
+    "modal.hfHubPathPlaceholder": "e.g. /home/ubuntu/.cache/huggingface/hub",
     "modal.ggufPath": "GGUF Path",
     "modal.ggufPathPlaceholder": "e.g. /home/ubuntu/gguf_models",
 
@@ -179,8 +179,8 @@ const _LANGS = {
     // Backup tab — actions
     "backup.sourcePanel": "Server",
     "backup.destPanel": "SSD Backup",
-    "backup.loadList": "Load List",
-    "backup.loadBackups": "Load Backups",
+    "backup.loadList": "↻",
+    "backup.loadBackups": "↻",
     "backup.backup": "Backup",
     "backup.backupArrow": "Backup \u2192",
     "backup.restoreArrow": "\u2190 Restore",
@@ -340,7 +340,7 @@ const _LANGS = {
     "modal.ssdMountPlaceholder": "\uc608: /mnt/ssd_t5",
     "modal.ssdScan": "\uc2a4\uce94",
     "modal.hfHubPath": "HF Hub \uacbd\ub85c",
-    "modal.hfHubPathPlaceholder": "\uc608: /home/ubuntu/hf_models/hub",
+    "modal.hfHubPathPlaceholder": "\uc608: /home/ubuntu/.cache/huggingface/hub",
     "modal.ggufPath": "GGUF \uacbd\ub85c",
     "modal.ggufPathPlaceholder": "\uc608: /home/ubuntu/gguf_models",
 
@@ -373,8 +373,8 @@ const _LANGS = {
     // Backup tab — actions
     "backup.sourcePanel": "\uc11c\ubc84",
     "backup.destPanel": "SSD \ubc31\uc5c5",
-    "backup.loadList": "\ubaa9\ub85d \ubd88\ub7ec\uc624\uae30",
-    "backup.loadBackups": "\ubc31\uc5c5 \ubaa9\ub85d",
+    "backup.loadList": "↻",
+    "backup.loadBackups": "↻",
     "backup.backup": "\ubc31\uc5c5",
     "backup.backupArrow": "\ubc31\uc5c5 \u2192",
     "backup.restoreArrow": "\u2190 \ubcf5\uc6d0",
