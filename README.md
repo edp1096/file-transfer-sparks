@@ -11,7 +11,6 @@ You can copy or backup/restore docker images, models to another DGX Spark or ext
 
 ## Requirements
 
-* Node >= 22.22, Go >= 1.22
 * tar, nc, pv
 * Set user in `docker` group
 ```sh
@@ -22,6 +21,7 @@ newgrp docker
 
 ## Build
 
+* Requirements - Node >= 22.22, Go >= 1.22
 ```sh
 neu update
 make
