@@ -16,6 +16,16 @@ async function themeToggle() {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnTheme').addEventListener('click', themeToggle);
+
+    // About modal
+    const aboutModal = document.getElementById('aboutModal');
+    document.getElementById('btnAbout').addEventListener('click', () => aboutModal.classList.add('open'));
+    document.getElementById('btnAboutClose').addEventListener('click', () => aboutModal.classList.remove('open'));
+    aboutModal.addEventListener('click', e => { if (e.target === aboutModal) aboutModal.classList.remove('open'); });
+    document.getElementById('aboutGithub').addEventListener('click', e => {
+        e.preventDefault();
+        Neutralino.os.open('https://github.com/edp1096/file-transfer-sparks');
+    });
 });
 
 Neutralino.events.on('ready', async () => {
@@ -26,6 +36,13 @@ Neutralino.events.on('ready', async () => {
     } catch {
         themeApply(osDefault);
     }
+
+    // About — version
+    try {
+        const cfg = await Neutralino.app.getConfig();
+        const el = document.getElementById('aboutVersion');
+        if (el && cfg.version) el.textContent = 'v' + cfg.version;
+    } catch {}
 });
 
 // ── Zoom ──────────────────────────────────────────────────────────────────

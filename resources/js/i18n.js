@@ -134,6 +134,9 @@ const _LANGS = {
     "misc.noResponse": "No response",
     "misc.connFailed": "Connection failed",
 
+    // About
+    "about.close": "Close",
+
     // Tabs
     "tab.fileTransfer": "File Transfer",
     "tab.backup": "Backup & Restore",
@@ -327,6 +330,9 @@ const _LANGS = {
     // Misc
     "misc.noResponse": "\uc751\ub2f5 \uc5c6\uc74c",
     "misc.connFailed": "\uc5f0\uacb0 \uc2e4\ud328",
+
+    // About
+    "about.close": "\ub2eb\uae30",
 
     // Tabs
     "tab.fileTransfer": "\ud30c\uc77c \uc804\uc1a1",

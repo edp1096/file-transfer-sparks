@@ -19,6 +19,7 @@
         <option value="en">EN</option>
         <option value="ko">한국어</option>
       </select>
+      <button class="btn-icon" id="btnAbout" title="About" style="font-size:13px;border:none;background:none">ⓘ</button>
     </div>
     <div class="tab-bar">
       <button class="tab-btn active" id="tabFileTransfer" data-i18n="tab.fileTransfer">File Transfer</button>
@@ -351,6 +352,17 @@
   <div id="toast"></div>
 
   <!-- neutralino.js must be loaded before all other scripts -->
+  <!-- ABOUT MODAL -->
+  <div class="modal-overlay" id="aboutModal">
+    <div class="modal-box about-box">
+      <div class="about-logo">⚡</div>
+      <div class="about-name">File Transfer for DGX Sparks</div>
+      <div class="about-ver" id="aboutVersion">—</div>
+      <a class="about-link" id="aboutGithub" href="#">github.com/edp1096/file-transfer-sparks</a>
+      <button class="btn" id="btnAboutClose" data-i18n="about.close">Close</button>
+    </div>
+  </div>
+
   <script src="/js/neutralino.js"></script>
   <script src="/js/input-block.js?v=13"></script>
   <script src="/js/i18n.js?v=13"></script>

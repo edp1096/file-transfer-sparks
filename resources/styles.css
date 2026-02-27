@@ -102,6 +102,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .modal-box{background:var(--bg1);border:1px solid var(--border);border-radius:12px;width:520px;max-height:92vh;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:14px}
 .modal-box::-webkit-scrollbar{width:5px}
 .modal-box::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px}
+.about-box{width:300px;text-align:center;align-items:center;gap:8px;padding:28px 24px}
+.about-logo{font-size:36px;line-height:1;margin-bottom:4px}
+.about-name{font-size:14px;font-weight:700;color:var(--text)}
+.about-ver{font-size:11px;color:var(--text2);margin-bottom:4px}
+.about-link{font-size:11px;color:var(--accent);text-decoration:none;cursor:pointer}
+.about-link:hover{text-decoration:underline}
 .modal-title{font-size:15px;font-weight:600}
 .form-group{display:flex;flex-direction:column;gap:5px}
 .form-label{font-size:11px;color:var(--text2);font-weight:600;letter-spacing:.3px;text-transform:uppercase}
