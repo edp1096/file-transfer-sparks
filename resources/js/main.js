@@ -23,9 +23,12 @@ const S = {
     // Column sort state
     sortA: { col: 'name', dir: 1 },  // dir: 1=asc, -1=desc
     sortB: { col: 'name', dir: 1 },
-    // Shift-click anchor
+    // Shift-click anchor (files mode)
     lastClickA: -1,
     lastClickB: -1,
+    // Shift-click anchor (docker mode)
+    lastClickDockerA: -1,
+    lastClickDockerB: -1,
     // Dir size load token (cancels stale du results on navigation)
     panelTokenA: 0,
     panelTokenB: 0,
@@ -425,6 +428,7 @@ async function loadDockerImages(side) {
     }
 
     listEl.innerHTML = '<div class="panel-state"><div class="state-icon">⟳</div><div class="state-msg">' + escHtml(t('panel.loading')) + '</div></div>';
+    if (side === 'A') S.lastClickDockerA = -1; else S.lastClickDockerB = -1;
 
     try {
         const res = await execSSH(srv,
@@ -464,16 +468,27 @@ function renderDockerList(side) {
 
     listEl.querySelectorAll('.bk-row').forEach(row => {
         row.addEventListener('click', e => {
+            const idx = parseInt(row.dataset.dockerIdx);
             const name = row.dataset.name;
             const sel = side === 'A' ? S.selA : S.selB;
             const chk = row.querySelector('input[type="checkbox"]');
-            if (e.target === chk) {
-                if (chk.checked) sel.add(name); else sel.delete(name);
+            const lastClick = side === 'A' ? S.lastClickDockerA : S.lastClickDockerB;
+
+            if (e.shiftKey && lastClick >= 0) {
+                const imgs = side === 'A' ? S.dockerA : S.dockerB;
+                const lo = Math.min(idx, lastClick), hi = Math.max(idx, lastClick);
+                for (let i = lo; i <= hi; i++) sel.add(imgs[i].name);
+                renderDockerList(side);
             } else {
-                if (sel.has(name)) { sel.delete(name); chk.checked = false; }
-                else { sel.add(name); chk.checked = true; }
+                if (side === 'A') S.lastClickDockerA = idx; else S.lastClickDockerB = idx;
+                if (e.target === chk) {
+                    if (chk.checked) sel.add(name); else sel.delete(name);
+                } else {
+                    if (sel.has(name)) { sel.delete(name); chk.checked = false; }
+                    else { sel.add(name); chk.checked = true; }
+                }
+                if (sel.has(name)) row.classList.add('selected'); else row.classList.remove('selected');
             }
-            if (sel.has(name)) row.classList.add('selected'); else row.classList.remove('selected');
             updateSelInfo();
         });
     });

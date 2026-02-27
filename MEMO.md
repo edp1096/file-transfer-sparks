@@ -1,5 +1,5 @@
 ## make
 ```sh
-make release V=v0.0.9 DESC="misc."
+make release V=v0.0.10 DESC="misc."
 make dist
 ```
