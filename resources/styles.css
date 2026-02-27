@@ -52,11 +52,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .panel-toolbar{display:flex;align-items:center;padding:5px 8px;gap:5px;background:var(--bg1);border-bottom:1px solid var(--border);flex-shrink:0}
 .path-input{flex:1;min-width:0;background:var(--bg0);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-family:'Cascadia Code','Consolas',monospace;font-size:11px;outline:none}
 .path-input:focus{border-color:var(--accent)}
-.list-header{display:grid;grid-template-columns:20px 1fr 72px 140px;padding:4px 8px;background:var(--bg2);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);font-weight:600;flex-shrink:0;gap:4px}
-.list-body{flex:1;overflow-y:auto;overflow-x:hidden}
-.list-body::-webkit-scrollbar{width:5px}
+.list-header{display:grid;grid-template-columns:20px var(--col-w-name,1fr) var(--col-w-size,72px) var(--col-w-mtime,140px);padding:4px 8px;background:var(--bg2);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);font-weight:600;flex-shrink:0;gap:4px;overflow-x:hidden;min-width:0}
+.col-wrap{position:relative;display:flex;align-items:center;min-width:0;overflow:visible;cursor:pointer;user-select:none}
+.col-wrap:hover .col-sort{color:var(--text)}
+.col-sort{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.col-sort[data-sort="asc"]::after{content:' ▲';color:var(--accent);font-size:9px}
+.col-sort[data-sort="desc"]::after{content:' ▼';color:var(--accent);font-size:9px}
+.col-resize-handle{position:absolute;right:-3px;top:0;height:100%;width:6px;cursor:col-resize;z-index:5;border-radius:2px}
+.col-resize-handle:hover,.col-resize-handle.dragging{background:var(--accent);opacity:.5}
+.list-body{flex:1;overflow-y:auto;overflow-x:auto}
+.list-body::-webkit-scrollbar{width:5px;height:5px}
 .list-body::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px}
-.file-row{display:grid;grid-template-columns:20px 1fr 72px 140px;padding:2px 8px;cursor:pointer;align-items:center;gap:4px;min-height:24px}
+.file-row{display:grid;grid-template-columns:20px var(--col-w-name,1fr) var(--col-w-size,72px) var(--col-w-mtime,140px);padding:2px 8px;cursor:pointer;align-items:center;gap:4px;min-height:24px}
 .file-row:hover{background:var(--bg2)}
 .file-row.selected{background:rgba(88,166,255,.1)}
 .file-row.selected:hover{background:rgba(88,166,255,.16)}

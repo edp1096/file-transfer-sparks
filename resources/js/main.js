@@ -20,6 +20,12 @@ const S = {
     panelModeB: 'files',
     dockerA: [],           // [{name, meta}]
     dockerB: [],
+    // Column sort state
+    sortA: { col: 'name', dir: 1 },  // dir: 1=asc, -1=desc
+    sortB: { col: 'name', dir: 1 },
+    // Shift-click anchor
+    lastClickA: -1,
+    lastClickB: -1,
 };
 
 // ============================================================
@@ -235,7 +241,7 @@ async function loadPanel(side) {
         listEl.innerHTML = '<div class="panel-state"><div class="state-icon">🖥</div><div class="state-msg">' + escHtml(t('panel.selectServer')) + '</div></div>';
         return;
     }
-    if (side === 'A') S.selA.clear(); else S.selB.clear();
+    if (side === 'A') { S.selA.clear(); S.lastClickA = -1; } else { S.selB.clear(); S.lastClickB = -1; }
     document.getElementById('chkAll' + side).checked = false;
     listEl.innerHTML = '<div class="panel-state"><div class="state-icon">⟳</div><div class="state-msg">' + escHtml(t('panel.loading')) + '</div></div>';
 
@@ -249,19 +255,42 @@ async function loadPanel(side) {
     }
 }
 
+function sortFiles(files, sort) {
+    return [...files].sort((a, b) => {
+        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+        let cmp = 0;
+        if (sort.col === 'name') cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+        else if (sort.col === 'size') cmp = (a.size || 0) - (b.size || 0);
+        else if (sort.col === 'mtime') cmp = (a.mtime || 0) - (b.mtime || 0);
+        return cmp * sort.dir;
+    });
+}
+
+function updateSortHeader(side) {
+    const header = document.getElementById('listHeader' + side);
+    if (!header) return;
+    const sort = side === 'A' ? S.sortA : S.sortB;
+    header.querySelectorAll('.col-sort').forEach(el => {
+        if (el.dataset.col === sort.col) el.setAttribute('data-sort', sort.dir === 1 ? 'asc' : 'desc');
+        else el.removeAttribute('data-sort');
+    });
+}
+
 function renderList(side) {
     const files = side === 'A' ? S.filesA : S.filesB;
     const sel = side === 'A' ? S.selA : S.selB;
+    const sort = side === 'A' ? S.sortA : S.sortB;
     const listEl = document.getElementById('list' + side);
 
     if (!files.length) {
         listEl.innerHTML = '<div class="panel-state"><div class="state-msg" style="color:var(--text3)">' + escHtml(t('panel.emptyDir')) + '</div></div>';
         return;
     }
-    listEl.innerHTML = files.map(f => {
+    const sorted = sortFiles(files, sort);
+    listEl.innerHTML = sorted.map((f, idx) => {
         const icon = f.isLink ? '🔗' : f.isDir ? '📁' : fileIcon(f.name);
         const cls = 'file-row' + (f.isDir ? ' is-dir' : '') + (f.isLink ? ' is-link' : '') + (sel.has(f.name) ? ' selected' : '');
-        return `<div class="${cls}" data-name="${escHtml(f.name)}" data-isdir="${f.isDir ? 1 : 0}">
+        return `<div class="${cls}" data-name="${escHtml(f.name)}" data-isdir="${f.isDir ? 1 : 0}" data-idx="${idx}">
       <input type="checkbox" ${sel.has(f.name) ? 'checked' : ''}>
       <div class="file-name-cell"><span class="file-icon">${icon}</span><span class="file-name-text" title="${escHtml(f.name)}">${escHtml(f.name)}</span></div>
       <div class="file-size-cell">${f.isDir ? '' : fmtBytes(f.size)}</div>
@@ -273,22 +302,34 @@ function renderList(side) {
 function attachPanelHandlers(side) {
     const listEl = document.getElementById('list' + side);
 
-    // Click: toggle checkbox / selection state
+    // Click: toggle / shift-range select
     listEl.addEventListener('click', e => {
         const row = e.target.closest('.file-row');
         if (!row) return;
         const name = row.dataset.name;
+        const idx = parseInt(row.dataset.idx);
         const sel = side === 'A' ? S.selA : S.selB;
         const chk = row.querySelector('input[type="checkbox"]');
+        const lastClick = side === 'A' ? S.lastClickA : S.lastClickB;
 
-        if (e.target === chk) {
-            if (chk.checked) sel.add(name); else sel.delete(name);
+        if (e.shiftKey && lastClick >= 0) {
+            // Range select from anchor to current
+            const files = side === 'A' ? S.filesA : S.filesB;
+            const sort = side === 'A' ? S.sortA : S.sortB;
+            const sorted = sortFiles(files, sort);
+            const lo = Math.min(idx, lastClick), hi = Math.max(idx, lastClick);
+            for (let i = lo; i <= hi; i++) sel.add(sorted[i].name);
+            renderList(side);
         } else {
-            // Clicking anywhere else on the row toggles selection
-            if (sel.has(name)) { sel.delete(name); chk.checked = false; }
-            else { sel.add(name); chk.checked = true; }
+            if (side === 'A') S.lastClickA = idx; else S.lastClickB = idx;
+            if (e.target === chk) {
+                if (chk.checked) sel.add(name); else sel.delete(name);
+            } else {
+                if (sel.has(name)) { sel.delete(name); chk.checked = false; }
+                else { sel.add(name); chk.checked = true; }
+            }
+            if (sel.has(name)) row.classList.add('selected'); else row.classList.remove('selected');
         }
-        if (sel.has(name)) row.classList.add('selected'); else row.classList.remove('selected');
         updateSelInfo();
     });
 
@@ -868,6 +909,119 @@ Neutralino.events.on('ready', async () => {
     document.getElementById('btnAtoB').onclick = () => startTransfer('AB');
     document.getElementById('btnBtoA').onclick = () => startTransfer('BA');
     document.getElementById('btnCancel').onclick = cancelTransfer;
+
+    // ── Column sort headers ───────────────────────────────────
+    ['A', 'B'].forEach(side => {
+        document.getElementById('listHeader' + side).querySelectorAll('.col-wrap').forEach(wrap => {
+            wrap.addEventListener('click', e => {
+                if (e.target.classList.contains('col-resize-handle')) return;
+                const sortEl = wrap.querySelector('.col-sort');
+                if (!sortEl) return;
+                const sort = side === 'A' ? S.sortA : S.sortB;
+                if (sort.col === sortEl.dataset.col) sort.dir = -sort.dir;
+                else { sort.col = sortEl.dataset.col; sort.dir = 1; }
+                renderList(side);
+                updateSortHeader(side);
+            });
+        });
+        updateSortHeader(side);
+    });
+
+    // ── Column resize ─────────────────────────────────────────
+    (function () {
+        const COL_KEY = 'colWidths';
+        const root = document.documentElement;
+        function applyColWidths(w) {
+            if (w.name != null) root.style.setProperty('--col-w-name', Math.max(60, w.name) + 'px');
+            if (w.size != null) root.style.setProperty('--col-w-size', Math.max(40, w.size) + 'px');
+            if (w.mtime != null) root.style.setProperty('--col-w-mtime', Math.max(60, w.mtime) + 'px');
+        }
+        function measureText(el) {
+            const style = getComputedStyle(el);
+            const canvas = measureText._canvas || (measureText._canvas = document.createElement('canvas'));
+            const ctx = canvas.getContext('2d');
+            ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+            return ctx.measureText(el.textContent).width;
+        }
+        async function autoFitCol(col) {
+            const PAD = 16; // horizontal padding per cell
+            let max = 0;
+            // measure header
+            const hdr = document.querySelector(`.col-sort[data-col="${col}"]`);
+            if (hdr) max = Math.max(max, measureText(hdr) + PAD + 12); // +12 for sort arrow space
+            if (col === 'name') {
+                document.querySelectorAll('.file-name-text').forEach(el => {
+                    max = Math.max(max, measureText(el) + 36 + PAD); // 36 = icon(20) + gap(16)
+                });
+                applyColWidths({ name: max });
+            } else if (col === 'size') {
+                document.querySelectorAll('.file-size-cell').forEach(el => {
+                    max = Math.max(max, measureText(el) + PAD);
+                });
+                applyColWidths({ size: max });
+            } else if (col === 'mtime') {
+                document.querySelectorAll('.file-mtime-cell').forEach(el => {
+                    max = Math.max(max, measureText(el) + PAD);
+                });
+                applyColWidths({ mtime: max });
+            }
+            const w = {
+                name: parseInt(root.style.getPropertyValue('--col-w-name')) || null,
+                size: parseInt(root.style.getPropertyValue('--col-w-size')) || 72,
+                mtime: parseInt(root.style.getPropertyValue('--col-w-mtime')) || 140
+            };
+            try { await Neutralino.storage.setData(COL_KEY, JSON.stringify(w)); } catch {}
+        }
+        Neutralino.events.on('ready', async () => {
+            try { applyColWidths(JSON.parse(await Neutralino.storage.getData(COL_KEY))); } catch {}
+        });
+        // Sync horizontal scroll: body → header
+        ['A', 'B'].forEach(side => {
+            const header = document.getElementById('listHeader' + side);
+            const body = document.getElementById('list' + side);
+            body.addEventListener('scroll', () => { header.scrollLeft = body.scrollLeft; });
+        });
+        document.querySelectorAll('.col-resize-handle').forEach(handle => {
+            handle.addEventListener('dblclick', e => {
+                e.preventDefault(); e.stopPropagation();
+                autoFitCol(handle.dataset.resize);
+            });
+            handle.addEventListener('mousedown', e => {
+                e.preventDefault(); e.stopPropagation();
+                const startX = e.clientX;
+                const resizeCol = handle.dataset.resize;
+                // Capture actual rendered width of name col (may be 1fr before first resize)
+                const nameEl = document.querySelector('.list-header .col-wrap');
+                const startName = resizeCol === 'name'
+                    ? (parseInt(root.style.getPropertyValue('--col-w-name')) || (nameEl ? nameEl.offsetWidth : 160))
+                    : null;
+                const startSize = parseInt(root.style.getPropertyValue('--col-w-size')) || 72;
+                const startMtime = parseInt(root.style.getPropertyValue('--col-w-mtime')) || 140;
+                handle.classList.add('dragging');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                function onMove(mv) {
+                    const d = mv.clientX - startX;
+                    if (resizeCol === 'name') applyColWidths({ name: startName + d, size: startSize, mtime: startMtime });
+                    else applyColWidths({ name: startName, size: startSize + d, mtime: startMtime });
+                }
+                async function onUp() {
+                    handle.classList.remove('dragging');
+                    document.body.style.cursor = ''; document.body.style.userSelect = '';
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    const w = {
+                        name: parseInt(root.style.getPropertyValue('--col-w-name')) || null,
+                        size: parseInt(root.style.getPropertyValue('--col-w-size')) || 72,
+                        mtime: parseInt(root.style.getPropertyValue('--col-w-mtime')) || 140
+                    };
+                    try { await Neutralino.storage.setData(COL_KEY, JSON.stringify(w)); } catch {}
+                }
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        });
+    })();
 
     // Docker mode buttons
     document.getElementById('btnDockerA').onclick = () => toggleDockerMode('A');

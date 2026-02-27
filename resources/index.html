@@ -77,9 +77,11 @@
         <button class="btn-icon" id="btnRefreshA" data-i18n-title="panel.refresh" title="Refresh" disabled>↻</button>
       </div>
       <div class="disk-info-bar" id="diskInfoA"></div>
-      <div class="list-header">
+      <div class="list-header" id="listHeaderA">
         <input type="checkbox" id="chkAllA" data-i18n-title="panel.selectAll" title="Select all">
-        <span data-i18n="panel.name">Name</span><span data-i18n="panel.size">Size</span><span data-i18n="panel.modified">Modified</span>
+        <div class="col-wrap"><span class="col-sort" data-col="name" data-i18n="panel.name">Name</span><span class="col-resize-handle" data-resize="name"></span></div>
+        <div class="col-wrap"><span class="col-sort" data-col="size" data-i18n="panel.size">Size</span><span class="col-resize-handle" data-resize="size"></span></div>
+        <div class="col-wrap"><span class="col-sort" data-col="mtime" data-i18n="panel.modified">Modified</span></div>
       </div>
       <div class="list-body" id="listA">
         <div class="panel-state">
@@ -97,9 +99,11 @@
         <button class="btn-icon" id="btnRefreshB" data-i18n-title="panel.refresh" title="Refresh" disabled>↻</button>
       </div>
       <div class="disk-info-bar" id="diskInfoB"></div>
-      <div class="list-header">
+      <div class="list-header" id="listHeaderB">
         <input type="checkbox" id="chkAllB" data-i18n-title="panel.selectAll" title="Select all">
-        <span data-i18n="panel.name">Name</span><span data-i18n="panel.size">Size</span><span data-i18n="panel.modified">Modified</span>
+        <div class="col-wrap"><span class="col-sort" data-col="name" data-i18n="panel.name">Name</span><span class="col-resize-handle" data-resize="name"></span></div>
+        <div class="col-wrap"><span class="col-sort" data-col="size" data-i18n="panel.size">Size</span><span class="col-resize-handle" data-resize="size"></span></div>
+        <div class="col-wrap"><span class="col-sort" data-col="mtime" data-i18n="panel.modified">Modified</span></div>
       </div>
       <div class="list-body" id="listB">
         <div class="panel-state">
