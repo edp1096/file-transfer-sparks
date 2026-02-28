@@ -696,6 +696,8 @@ async function onSelectServer(side) {
     listEl.innerHTML = '<div class="panel-state"><div class="state-icon">⟳</div><div class="state-msg">' + escHtml(t('panel.connecting')) + '</div></div>';
 
     try {
+        const ping = await execSSH(srv, 'echo __CONN_OK__');
+        if (!(ping.stdOut || '').includes('__CONN_OK__')) throw new Error((ping.stdErr || t('misc.noResponse')).trim().slice(0, 120));
         const home = await getHomeDir(srv);
         if (side === 'A') S.pathA = home; else S.pathB = home;
         pathEl.value = home;
@@ -705,10 +707,26 @@ async function onSelectServer(side) {
         await loadPanel(side);
         loadPanelDiskInfo(side);   // fire-and-forget
     } catch (e) {
-        dot.className = 'conn-dot err';
-        listEl.innerHTML = `<div class="panel-state err"><div class="state-icon">⚠</div><div class="state-msg">${escHtml(t('misc.connFailed'))}<br><span style="font-size:11px;color:var(--text3)">${escHtml(e.message || String(e))}</span></div></div>`;
-        setStatus(t('status.connFail', { alias: srv.alias }));
-        toast(t('toast.connFail', { alias: srv.alias }), 'err');
+        const alias = srv.alias;
+        setStatus(t('status.connFail', { alias }));
+        toast(t('toast.connFail', { alias }), 'err');
+        // 연결 실패: 서버 선택을 초기 상태로 되돌림
+        document.getElementById('select' + side).value = '';
+        if (side === 'A') { S.srvA = null; S.pathA = null; S.filesA = []; S.selA.clear(); S.panelModeA = 'files'; S.dockerA = []; }
+        else { S.srvB = null; S.pathB = null; S.filesB = []; S.selB.clear(); S.panelModeB = 'files'; S.dockerB = []; }
+        syncSelectDisabled();
+        dot.className = 'conn-dot';
+        editBtn.disabled = true;
+        dockerBtn.disabled = true;
+        dockerBtn.classList.remove('docker-active');
+        dockerBtn.title = t('panel.dockerMode');
+        upBtn.disabled = true;
+        refBtn.disabled = true;
+        pathEl.value = '';
+        listEl.innerHTML = '<div class="panel-state"><div class="state-icon">🖥</div><div class="state-msg">' + escHtml(t('panel.selectServer')) + '</div></div>';
+        const diskEl = document.getElementById('diskInfo' + side);
+        if (diskEl) diskEl.textContent = '';
+        updateTransferBtns();
     }
 }
 
@@ -1203,8 +1221,24 @@ Neutralino.events.on('ready', async () => {
         editBk.disabled = !BK.srv;
         bkUpdateState();
         if (BK.srv) {
+            const alias = BK.srv.alias;
+            // 연결 확인: 서버가 꺼진 경우 선택을 초기 상태로 되돌림
+            try {
+                const res = await execSSH(BK.srv, 'echo __CONN_OK__');
+                if (!(res.stdOut || '').includes('__CONN_OK__')) throw new Error(res.stdErr || t('misc.noResponse'));
+            } catch (e) {
+                BK.srv = null;
+                document.getElementById('selectBk').value = '';
+                editBk.disabled = true;
+                dotBk.className = 'conn-dot';
+                bkUpdateState();
+                toast(t('toast.connFail', { alias }), 'err');
+                setStatus(t('status.connFail', { alias }));
+                return;
+            }
             await bkCheckMount();
             dotBk.className = 'conn-dot ok';
+            setStatus(t('status.connected', { alias }));
             // Auto-load server list; backup list loads only if SSD is mounted
             bkLoadList();
             if (BK.mounted) bkLoadBackupList();

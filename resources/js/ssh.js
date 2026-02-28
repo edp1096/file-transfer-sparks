@@ -95,7 +95,9 @@ async function listRemote(srv, path) {
 
 async function getHomeDir(srv) {
     const res = await execSSH(srv, 'echo $HOME');
-    return (res.stdOut || '').trim() || '/home/' + srv.username;
+    const out = (res.stdOut || '').trim();
+    if (!out) throw new Error((res.stdErr || t('misc.noResponse')).trim().slice(0, 120));
+    return out;
 }
 
 async function getTransferSize(srv, paths) {

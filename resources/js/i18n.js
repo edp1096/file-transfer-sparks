@@ -275,7 +275,7 @@ const _LANGS = {
     "toast.requiredFields": "\ud544\uc218 \ud56d\ubaa9\uc744 \ubaa8\ub450 \uc785\ub825\ud558\uc138\uc694 (\ubcc4\uce6d, SSH \ud638\uc2a4\ud2b8, QSFP \ud638\uc2a4\ud2b8, \uc0ac\uc6a9\uc790\uba85)",
     "toast.saved": "\"{alias}\" \uc800\uc7a5\ub428",
     "toast.serverDeleted": "\uc11c\ubc84 \uc0ad\uc81c\ub428",
-    "toast.connFail": "{alias} \uc5f0\uacb0 \ubd88\uac00",
+    "toast.connFail": "{alias} \uc5f0\uacb0 \uc2e4\ud328",
 
     // Modal
     "modal.addServer": "\uc11c\ubc84 \ucd94\uac00",
