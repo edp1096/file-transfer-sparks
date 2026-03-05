@@ -26,3 +26,11 @@ newgrp docker
 neu update
 make
 ```
+
+
+## Trouble shooting
+
+* Freeze on Orange PI 5 plus / JoshuaRiek's Ubuntu rockchip
+```sh
+WEBKIT_DISABLE_COMPOSITING_MODE=1 ./file-transfer-sparks &
+```
