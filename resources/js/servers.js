@@ -317,7 +317,9 @@ function openModal(editId) {
     disableTestBtns(false);
 
     document.getElementById('serverModal').classList.add('open');
-    setTimeout(() => document.getElementById('fAlias').focus(), 50);
+    requestAnimationFrame(() => {
+        setTimeout(() => document.getElementById('fAlias').focus(), 100);
+    });
 }
 
 function closeModal() { document.getElementById('serverModal').classList.remove('open'); }
