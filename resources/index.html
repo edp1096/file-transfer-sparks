@@ -59,11 +59,9 @@
       <button class="btn-icon" id="btnEditBk" data-i18n-title="header.editServer" title="Edit server" disabled>⚙</button>
     </div>
     <div class="flex-spacer"></div>
-    <div id="bkMountBar" class="bk-mount-bar" style="display:none">
-      <div class="conn-dot" id="dotMount"></div>
-      <span class="bk-mount-label" id="bkMountLabel">--</span>
-      <button class="btn btn-sm btn-primary" id="btnMount" data-i18n="backup.mount">Mount</button>
-      <button class="btn btn-sm btn-danger" id="btnUnmount" data-i18n="backup.unmount" style="display:none">Unmount</button>
+    <div id="bkSsdBar" class="bk-ssd-bar" style="display:none">
+      <div id="bkSsdChips" class="bk-ssd-chips"></div>
+      <select id="bkSsdSelect" class="bk-ssd-select" style="display:none"></select>
     </div>
   </div>
 
@@ -310,18 +308,12 @@
         <div class="form-label" data-i18n="modal.ssdSection">External SSD &amp; Backup Settings</div>
       </div>
 
-      <div class="form-row">
-        <div class="form-group">
-          <div class="form-label" data-i18n="modal.ssdDevice">Device</div>
-          <div style="display:flex;gap:5px">
-            <input type="text" class="form-input" id="fSsdDevice" data-i18n-placeholder="modal.ssdDevicePlaceholder" placeholder="/dev/sda1" autocomplete="off">
-            <button class="btn btn-sm" id="btnScanSsd" data-i18n="modal.ssdScan" style="flex-shrink:0">Scan</button>
-          </div>
+      <div class="form-group">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <button class="btn btn-sm btn-primary" id="btnAddSsd" data-i18n="modal.ssdAdd">Add SSD</button>
+          <button class="btn btn-sm" id="btnScanSsd" data-i18n="modal.ssdScan">Scan</button>
         </div>
-        <div class="form-group">
-          <div class="form-label" data-i18n="modal.ssdMountPoint">Mount Point</div>
-          <input type="text" class="form-input" id="fSsdMount" data-i18n-placeholder="modal.ssdMountPlaceholder" placeholder="/mnt/ssd_t5" autocomplete="off">
-        </div>
+        <div id="ssdListContainer" class="ssd-list"></div>
       </div>
 
       <div class="form-group">

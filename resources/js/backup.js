@@ -1,7 +1,7 @@
 "use strict";
 
 // ============================================================
-// BACKUP / RESTORE
+// BACKUP / RESTORE — Multi-SSD support
 // ============================================================
 const BK = {
     srv: null,
@@ -9,10 +9,27 @@ const BK = {
     items: [],          // server-side items (for Backup)
     bkupItems: [],      // SSD backup items (for Restore)
     busy: false,
-    mounted: false,     // SSD mount state (tracked to enable auto-load)
+    ssdStates: [],      // [{device, mount, alias, mounted}] per SSD
+    activeSsdIdx: -1,   // index into ssdStates for backup/restore target
     lastClickItems: -1, // shift-click anchor for server list
     lastClickBkup: -1,  // shift-click anchor for backup list
 };
+
+// ── Helpers ──────────────────────────────────────────────────
+
+/** Get the currently active SSD state object, or null */
+function bkActiveSsd() {
+    if (BK.activeSsdIdx < 0 || BK.activeSsdIdx >= BK.ssdStates.length) return null;
+    return BK.ssdStates[BK.activeSsdIdx];
+}
+
+/** Get the mount path of the currently active SSD, or '' */
+function bkActiveSsdMount() {
+    const ssd = bkActiveSsd();
+    return ssd ? ssd.mount : '';
+}
+
+// ── Logging ──────────────────────────────────────────────────
 
 function bkLog(msg, cls) {
     const el = document.getElementById('bkLog');
@@ -29,19 +46,23 @@ function bkLogClear() {
     if (el) el.innerHTML = '';
 }
 
+// ── State management ─────────────────────────────────────────
+
 function bkUpdateState() {
     const noServer = document.getElementById('bkStateNoServer');
     const noSsd = document.getElementById('bkStateNoSsd');
     const content = document.getElementById('bkContent');
-    const mountBar = document.getElementById('bkMountBar');
+    const ssdBar = document.getElementById('bkSsdBar');
 
     if (!BK.srv) {
         noServer.style.display = '';
         noSsd.style.display = 'none';
         content.style.display = 'none';
-        mountBar.style.display = 'none';
+        ssdBar.style.display = 'none';
         BK.items = [];
         BK.bkupItems = [];
+        BK.ssdStates = [];
+        BK.activeSsdIdx = -1;
         return;
     }
 
@@ -49,13 +70,276 @@ function bkUpdateState() {
     noSsd.style.display = 'none';
     content.style.display = '';
 
-    const hasSsd = !!(BK.srv.ssdDevice || BK.srv.ssdMount);
-    mountBar.style.display = hasSsd ? '' : 'none';
+    const hasSsd = BK.srv.ssds && BK.srv.ssds.length > 0;
+    ssdBar.style.display = hasSsd ? '' : 'none';
 
+    // Build ssdStates from server config
+    BK.ssdStates = (BK.srv.ssds || []).map(s => ({
+        device: s.device,
+        mount: s.mount,
+        alias: s.alias || '',
+        mounted: false
+    }));
+    BK.activeSsdIdx = -1;
+
+    bkRenderSsdChips();
     bkRenderList();
     bkRenderBkupList();
     if (!hasSsd) bkRenderBkupPlaceholder(t('backup.noSsdConfig'));
 }
+
+// ── SSD mount checking ───────────────────────────────────────
+
+/** Check mount status of all SSDs in a single SSH call */
+async function bkCheckAllMounts() {
+    if (!BK.srv || !BK.ssdStates.length) return;
+
+    // Set all chips to checking
+    BK.ssdStates.forEach((_, idx) => bkSetSsdChipChecking(idx));
+
+    try {
+        // Build a single command that checks all mount points
+        const checks = BK.ssdStates.map((s, i) =>
+            `mountpoint -q ${bq(s.mount)} 2>/dev/null && echo "__SSD_${i}_YES__" || echo "__SSD_${i}_NO__"`
+        ).join(' ; ');
+        const res = await execSSH(BK.srv, checks);
+        const out = res.stdOut || '';
+
+        BK.ssdStates.forEach((s, i) => {
+            s.mounted = out.includes(`__SSD_${i}_YES__`);
+            bkSetSsdChipMountUI(i, s.mounted);
+        });
+    } catch (_) {
+        BK.ssdStates.forEach((s, i) => {
+            s.mounted = false;
+            bkSetSsdChipMountUI(i, false);
+        });
+    }
+
+    bkAutoSelectSsd();
+    bkUpdateSsdSelect();
+}
+
+/** Mount a specific SSD by index */
+async function bkMount(idx) {
+    if (!BK.srv || idx < 0 || idx >= BK.ssdStates.length) return;
+    const ssd = BK.ssdStates[idx];
+
+    bkSetSsdChipChecking(idx);
+    bkLog('$ mount ' + ssd.device + ' ' + ssd.mount);
+
+    try {
+        // Try primary mount point
+        const cmd = `mkdir -p ${bq(ssd.mount)} && sudo mount ${bq(ssd.device)} ${bq(ssd.mount)}`;
+        const wrapped = BK.srv.useSudo ? wrapSudo(BK.srv, cmd) : cmd;
+        const res = await execSSH(BK.srv, wrapped);
+        const errMsg = (res.stdErr || '').trim();
+
+        if (res.exitCode !== 0 && errMsg) {
+            // Fallback: try /mnt/ssd_<name>
+            const devName = ssd.device.replace(/^\/dev\//, '');
+            const fallbackMount = '/mnt/ssd_' + devName;
+            bkLog('Primary mount failed, trying fallback: ' + fallbackMount, 'warn');
+            const cmd2 = `mkdir -p ${bq(fallbackMount)} && sudo mount ${bq(ssd.device)} ${bq(fallbackMount)}`;
+            const wrapped2 = BK.srv.useSudo ? wrapSudo(BK.srv, cmd2) : cmd2;
+            const res2 = await execSSH(BK.srv, wrapped2);
+            if (res2.exitCode === 0) {
+                // Update mount point to fallback
+                ssd.mount = fallbackMount;
+                // Also update the server config
+                const srvSsd = BK.srv.ssds[idx];
+                if (srvSsd) srvSsd.mount = fallbackMount;
+            } else {
+                const err2 = (res2.stdErr || '').trim();
+                if (err2) bkLog(err2, 'warn');
+                bkLog(t('backup.mountFail', { msg: err2 || errMsg }), 'err');
+                toast(t('backup.mountFail', { msg: (err2 || errMsg).slice(0, 80) }), 'err');
+                bkSetSsdChipMountUI(idx, false);
+                return;
+            }
+        } else if (errMsg) {
+            bkLog(errMsg, 'warn');
+        }
+
+        // Verify mount
+        const chk = await execSSH(BK.srv,
+            `mountpoint -q ${bq(ssd.mount)} 2>/dev/null && echo __MNT_YES__ || echo __MNT_NO__`);
+        ssd.mounted = (chk.stdOut || '').includes('__MNT_YES__');
+        bkSetSsdChipMountUI(idx, ssd.mounted);
+
+        if (ssd.mounted) {
+            bkLog(t('backup.mountSuccess', { point: ssd.mount }), 'ok');
+            toast(t('backup.mountSuccess', { point: ssd.mount }), 'ok');
+            bkAutoSelectSsd();
+            bkUpdateSsdSelect();
+            bkFetchDiskInfo();
+            bkLoadBackupList();
+        }
+    } catch (e) {
+        bkLog(t('backup.mountFail', { msg: e.message || String(e) }), 'err');
+        toast(t('backup.mountFail', { msg: e.message || String(e) }), 'err');
+        bkSetSsdChipMountUI(idx, false);
+    }
+}
+
+/** Unmount a specific SSD by index */
+async function bkUnmount(idx) {
+    if (!BK.srv || idx < 0 || idx >= BK.ssdStates.length) return;
+    const ssd = BK.ssdStates[idx];
+
+    bkSetSsdChipChecking(idx);
+    bkLog('$ umount ' + ssd.mount);
+
+    try {
+        const cmd = `sudo umount ${bq(ssd.mount)}`;
+        const wrapped = BK.srv.useSudo ? wrapSudo(BK.srv, cmd) : cmd;
+        const res = await execSSH(BK.srv, wrapped);
+        const errMsg = (res.stdErr || '').trim();
+        if (errMsg) bkLog(errMsg, 'warn');
+
+        if (res.exitCode !== 0) {
+            const msg = errMsg || 'umount failed';
+            bkLog(t('backup.unmountFail', { msg }), 'err');
+            toast(t('backup.unmountFail', { msg: msg.slice(0, 80) }), 'err');
+            // Re-check actual state
+            const chk = await execSSH(BK.srv,
+                `mountpoint -q ${bq(ssd.mount)} 2>/dev/null && echo __MNT_YES__ || echo __MNT_NO__`);
+            ssd.mounted = (chk.stdOut || '').includes('__MNT_YES__');
+            bkSetSsdChipMountUI(idx, ssd.mounted);
+            return;
+        }
+
+        // rmdir cleanup (best-effort)
+        try {
+            await execSSH(BK.srv, BK.srv.useSudo
+                ? wrapSudo(BK.srv, `rmdir ${bq(ssd.mount)} 2>/dev/null || true`)
+                : `rmdir ${bq(ssd.mount)} 2>/dev/null || true`);
+        } catch (_) {}
+
+        ssd.mounted = false;
+        bkSetSsdChipMountUI(idx, false);
+        bkLog(t('backup.unmountSuccess', { point: ssd.mount }), 'ok');
+        toast(t('backup.unmountSuccess', { point: ssd.mount }), 'ok');
+
+        // If this was the active SSD, re-select
+        if (BK.activeSsdIdx === idx) {
+            BK.bkupItems = [];
+            bkRenderBkupList();
+            bkRenderBkupPlaceholder(t('backup.noItems'));
+        }
+        bkAutoSelectSsd();
+        bkUpdateSsdSelect();
+        const diskEl = document.getElementById('bkDiskInfo');
+        if (diskEl) diskEl.textContent = '';
+    } catch (e) {
+        bkLog(t('backup.unmountFail', { msg: e.message || String(e) }), 'err');
+        toast(t('backup.unmountFail', { msg: e.message || String(e) }), 'err');
+        bkSetSsdChipMountUI(idx, ssd.mounted);
+    }
+}
+
+/** Auto-select an active SSD: if only 1 mounted, select it; if multiple, keep current or select first */
+function bkAutoSelectSsd() {
+    const mountedIndices = BK.ssdStates
+        .map((s, i) => s.mounted ? i : -1)
+        .filter(i => i >= 0);
+
+    if (mountedIndices.length === 0) {
+        BK.activeSsdIdx = -1;
+    } else if (mountedIndices.length === 1) {
+        BK.activeSsdIdx = mountedIndices[0];
+    } else {
+        // Multiple mounted — keep current if still mounted, else first
+        if (BK.activeSsdIdx >= 0 && BK.ssdStates[BK.activeSsdIdx]?.mounted) {
+            // keep current
+        } else {
+            BK.activeSsdIdx = mountedIndices[0];
+        }
+    }
+}
+
+// ── SSD chip UI ──────────────────────────────────────────────
+
+function bkRenderSsdChips() {
+    const container = document.getElementById('bkSsdChips');
+    if (!container) return;
+
+    if (!BK.ssdStates.length) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = BK.ssdStates.map((ssd, idx) => {
+        const label = ssd.alias || ssd.device;
+        return `<div class="bk-ssd-chip" data-ssd-idx="${idx}">
+          <div class="conn-dot" id="dotSsd${idx}"></div>
+          <span class="ssd-chip-label">${escHtml(label)}</span>
+          <button class="btn btn-sm btn-primary ssd-mount-btn" data-ssd-mount="${idx}" style="display:none">${escHtml(t('backup.mount'))}</button>
+          <button class="btn btn-sm btn-danger ssd-unmount-btn" data-ssd-unmount="${idx}" style="display:none">${escHtml(t('backup.unmount'))}</button>
+        </div>`;
+    }).join('');
+
+    // Bind mount/unmount buttons
+    container.querySelectorAll('[data-ssd-mount]').forEach(btn => {
+        btn.addEventListener('click', () => bkMount(parseInt(btn.dataset.ssdMount)));
+    });
+    container.querySelectorAll('[data-ssd-unmount]').forEach(btn => {
+        btn.addEventListener('click', () => bkUnmount(parseInt(btn.dataset.ssdUnmount)));
+    });
+}
+
+function bkSetSsdChipChecking(idx) {
+    const dot = document.getElementById('dotSsd' + idx);
+    if (dot) dot.className = 'conn-dot loading';
+    const chip = document.querySelector(`.bk-ssd-chip[data-ssd-idx="${idx}"]`);
+    if (chip) {
+        const mountBtn = chip.querySelector('.ssd-mount-btn');
+        const unmountBtn = chip.querySelector('.ssd-unmount-btn');
+        if (mountBtn) mountBtn.disabled = true;
+        if (unmountBtn) unmountBtn.disabled = true;
+    }
+}
+
+function bkSetSsdChipMountUI(idx, mounted) {
+    const dot = document.getElementById('dotSsd' + idx);
+    if (dot) dot.className = 'conn-dot ' + (mounted ? 'ok' : 'err');
+    const chip = document.querySelector(`.bk-ssd-chip[data-ssd-idx="${idx}"]`);
+    if (chip) {
+        const mountBtn = chip.querySelector('.ssd-mount-btn');
+        const unmountBtn = chip.querySelector('.ssd-unmount-btn');
+        if (mountBtn) {
+            mountBtn.style.display = mounted ? 'none' : '';
+            mountBtn.disabled = BK.busy;
+        }
+        if (unmountBtn) {
+            unmountBtn.style.display = mounted ? '' : 'none';
+            unmountBtn.disabled = BK.busy;
+        }
+    }
+}
+
+/** Show/hide the SSD select dropdown depending on how many are mounted */
+function bkUpdateSsdSelect() {
+    const sel = document.getElementById('bkSsdSelect');
+    if (!sel) return;
+    const mountedIndices = BK.ssdStates
+        .map((s, i) => s.mounted ? i : -1)
+        .filter(i => i >= 0);
+
+    if (mountedIndices.length <= 1) {
+        sel.style.display = 'none';
+        return;
+    }
+
+    sel.style.display = '';
+    sel.innerHTML = mountedIndices.map(i => {
+        const s = BK.ssdStates[i];
+        const label = s.alias || s.device;
+        return `<option value="${i}"${i === BK.activeSsdIdx ? ' selected' : ''}>${escHtml(label)}</option>`;
+    }).join('');
+}
+
+// ── Disk info ────────────────────────────────────────────────
 
 async function bkFetchServerDiskInfo() {
     const el = document.getElementById('bkSrvDiskInfo');
@@ -84,120 +368,15 @@ async function bkFetchServerDiskInfo() {
 async function bkFetchDiskInfo() {
     const el = document.getElementById('bkDiskInfo');
     if (!el) return;
-    if (!BK.srv || !BK.srv.ssdMount) { el.textContent = ''; return; }
+    const mount = bkActiveSsdMount();
+    if (!BK.srv || !mount) { el.textContent = ''; return; }
     try {
         const res = await execSSH(BK.srv,
-            `df -h ${bq(BK.srv.ssdMount)} 2>/dev/null | awk 'NR==2{print $3 "/" $2 " (" $5 " " $4 " free)"}'`);
+            `df -h ${bq(mount)} 2>/dev/null | awk 'NR==2{print $3 "/" $2 " (" $5 " " $4 " free)"}'`);
         const info = (res.stdOut || '').trim();
         el.textContent = info ? '\u2014 ' + info : '';
     } catch (_) {
         el.textContent = '';
-    }
-}
-
-async function bkCheckMount() {
-    if (!BK.srv) return;
-    const mp = BK.srv.ssdMount;
-    if (!mp) { bkSetMountUI(false); return; }
-
-    bkSetMountChecking();
-    try {
-        // Use distinct tokens that don't contain each other as substrings
-        const res = await execSSH(BK.srv,
-            `mountpoint -q ${bq(mp)} 2>/dev/null && echo __MNT_YES__ || echo __MNT_NO__`);
-        bkSetMountUI((res.stdOut || '').includes('__MNT_YES__'));
-    } catch (_) {
-        bkSetMountUI(false);
-    }
-}
-
-function bkSetMountChecking() {
-    document.getElementById('dotMount').className = 'conn-dot loading';
-    document.getElementById('bkMountLabel').textContent = t('backup.checking');
-    document.getElementById('btnMount').disabled = true;
-    document.getElementById('btnUnmount').disabled = true;
-}
-
-function bkSetMountUI(mounted) {
-    const dot = document.getElementById('dotMount');
-    const label = document.getElementById('bkMountLabel');
-    const mountBtn = document.getElementById('btnMount');
-    const unmountBtn = document.getElementById('btnUnmount');
-
-    BK.mounted = mounted;
-
-    if (mounted) {
-        dot.className = 'conn-dot ok';
-        label.textContent = t('backup.mounted') + (BK.srv?.ssdMount ? ' (' + BK.srv.ssdMount + ')' : '');
-        mountBtn.style.display = 'none';
-        mountBtn.disabled = false;
-        unmountBtn.style.display = '';
-        unmountBtn.disabled = false;
-        bkFetchDiskInfo();
-    } else {
-        dot.className = 'conn-dot err';
-        label.textContent = t('backup.notMounted') + (BK.srv?.ssdMount ? ' (' + BK.srv.ssdMount + ')' : '');
-        mountBtn.style.display = '';
-        mountBtn.disabled = false;
-        unmountBtn.style.display = 'none';
-        unmountBtn.disabled = false;
-        const el = document.getElementById('bkDiskInfo');
-        if (el) el.textContent = '';
-    }
-}
-
-async function bkMount() {
-    if (!BK.srv) return;
-    if (!BK.srv.ssdDevice) { toast(t('backup.noSsdDevice'), 'warn'); return; }
-    if (!BK.srv.ssdMount) { toast(t('backup.noMountPoint'), 'warn'); return; }
-
-    bkSetMountChecking();
-    bkLog('$ mount ' + BK.srv.ssdDevice + ' ' + BK.srv.ssdMount);
-    try {
-        const cmd = `mkdir -p ${bq(BK.srv.ssdMount)} && sudo mount ${bq(BK.srv.ssdDevice)} ${bq(BK.srv.ssdMount)}`;
-        const wrapped = BK.srv.useSudo ? wrapSudo(BK.srv, cmd) : cmd;
-        const res = await execSSH(BK.srv, wrapped);
-        if ((res.stdErr || '').trim()) bkLog(res.stdErr.trim(), 'warn');
-        await bkCheckMount();
-        bkLog(t('backup.mountSuccess', { point: BK.srv.ssdMount }), 'ok');
-        toast(t('backup.mountSuccess', { point: BK.srv.ssdMount }), 'ok');
-        bkLoadBackupList();   // auto-load SSD backup list after mount
-    } catch (e) {
-        bkLog(t('backup.mountFail', { msg: e.message || String(e) }), 'err');
-        toast(t('backup.mountFail', { msg: e.message || String(e) }), 'err');
-        bkSetMountUI(false);
-    }
-}
-
-async function bkUnmount() {
-    if (!BK.srv) return;
-    if (!BK.srv.ssdMount) { toast(t('backup.noMountPoint'), 'warn'); return; }
-
-    bkSetMountChecking();
-    bkLog('$ umount ' + BK.srv.ssdMount);
-    try {
-        const cmd = `sudo umount ${bq(BK.srv.ssdMount)}`;
-        const wrapped = BK.srv.useSudo ? wrapSudo(BK.srv, cmd) : cmd;
-        const res = await execSSH(BK.srv, wrapped);
-        const errMsg = (res.stdErr || '').trim();
-        if (errMsg) bkLog(errMsg, 'warn');
-        if (res.exitCode !== 0) {
-            const msg = errMsg || 'umount failed';
-            bkLog(t('backup.unmountFail', { msg }), 'err');
-            toast(t('backup.unmountFail', { msg: msg.slice(0, 80) }), 'err');
-            await bkCheckMount();
-            return;
-        }
-        await bkCheckMount();
-        BK.bkupItems = [];
-        bkRenderBkupList();
-        bkRenderBkupPlaceholder(t('backup.noItems'));
-        bkLog(t('backup.unmountSuccess', { point: BK.srv.ssdMount }), 'ok');
-        toast(t('backup.unmountSuccess', { point: BK.srv.ssdMount }), 'ok');
-    } catch (e) {
-        bkLog(t('backup.unmountFail', { msg: e.message || String(e) }), 'err');
-        toast(t('backup.unmountFail', { msg: e.message || String(e) }), 'err');
-        bkSetMountUI(true);
     }
 }
 
@@ -220,7 +399,7 @@ async function bkLoadList() {
         }
     } catch (e) {
         bkLog('Load error: ' + (e.message || String(e)), 'err');
-        bkRenderPlaceholder('⚠ ' + (e.message || String(e)));
+        bkRenderPlaceholder('\u26a0 ' + (e.message || String(e)));
     } finally {
         document.getElementById('btnBkLoad').disabled = false;
         bkRenderList();
@@ -229,7 +408,6 @@ async function bkLoadList() {
 }
 
 async function bkListDocker() {
-    // docker images --format "{{.Repository}}:{{.Tag}}\t{{.Size}}"
     const res = await execSSH(BK.srv,
         `docker images --format "{{.Repository}}:{{.Tag}}\\t{{.Size}}" 2>&1`);
     const out = (res.stdOut || '').trim();
@@ -242,11 +420,9 @@ async function bkListDocker() {
 
 async function bkListHF() {
     if (!BK.srv.hfHubPath) throw new Error(t('backup.noHfPath'));
-    // mkdir -p so the path exists even on first run
     await execSSH(BK.srv, BK.srv.useSudo
         ? wrapSudo(BK.srv, `mkdir -p ${bq(BK.srv.hfHubPath)}`)
         : `mkdir -p ${bq(BK.srv.hfHubPath)}`);
-    // du -sh for size info, tab-separated: size\tpath
     const res = await execSSH(BK.srv,
         `du -sh ${bq(BK.srv.hfHubPath)}/* 2>/dev/null | awk '{split($2,a,"/"); print a[length(a)] "\\t" $1}' || true`);
     const out = (res.stdOut || '').trim();
@@ -259,11 +435,9 @@ async function bkListHF() {
 
 async function bkListGGUF() {
     if (!BK.srv.ggufPath) throw new Error(t('backup.noGgufPath'));
-    // mkdir -p so the path exists even on first run
     await execSSH(BK.srv, BK.srv.useSudo
         ? wrapSudo(BK.srv, `mkdir -p ${bq(BK.srv.ggufPath)}`)
         : `mkdir -p ${bq(BK.srv.ggufPath)}`);
-    // du -sh for size info on .gguf files, tab-separated
     const res = await execSSH(BK.srv,
         `du -sh ${bq(BK.srv.ggufPath)}/*.gguf 2>/dev/null | awk '{split($2,a,"/"); print a[length(a)] "\\t" $1}' || true`);
     const out = (res.stdOut || '').trim();
@@ -341,6 +515,18 @@ function bkSetBusy(busy) {
     document.getElementById('btnBkLoad').disabled = busy;
     document.getElementById('btnBkLoadBkup').disabled = busy;
     document.getElementById('btnBkCancel').style.display = busy ? '' : 'none';
+    // Disable all SSD mount/unmount buttons + dropdown during busy
+    BK.ssdStates.forEach((s, idx) => {
+        const chip = document.querySelector(`.bk-ssd-chip[data-ssd-idx="${idx}"]`);
+        if (chip) {
+            const mountBtn = chip.querySelector('.ssd-mount-btn');
+            const unmountBtn = chip.querySelector('.ssd-unmount-btn');
+            if (mountBtn) mountBtn.disabled = busy;
+            if (unmountBtn) unmountBtn.disabled = busy;
+        }
+    });
+    const ssdSel = document.getElementById('bkSsdSelect');
+    if (ssdSel) ssdSel.disabled = busy;
     bkUpdateActionBtns();
 }
 
@@ -348,11 +534,12 @@ async function bkRunBackup() {
     if (BK.busy || !BK.srv) return;
     const sel = BK.items.filter(i => i.selected);
     if (!sel.length) { toast(t('backup.selectItems'), 'warn'); return; }
-    if (!BK.srv.ssdMount) { toast(t('backup.noMountPoint'), 'warn'); return; }
+    const mount = bkActiveSsdMount();
+    if (!mount) { toast(t('backup.ssdNotMounted'), 'warn'); return; }
 
     // Verify SSD is mounted
     try {
-        const chk = await execSSH(BK.srv, `mountpoint -q ${bq(BK.srv.ssdMount)} && echo MOUNTED || echo NOT_MOUNTED`);
+        const chk = await execSSH(BK.srv, `mountpoint -q ${bq(mount)} && echo MOUNTED || echo NOT_MOUNTED`);
         if (!(chk.stdOut || '').includes('MOUNTED')) {
             toast(t('backup.ssdNotMounted'), 'warn');
             return;
@@ -386,10 +573,11 @@ async function bkRunRestore() {
     if (BK.busy || !BK.srv) return;
     const sel = BK.bkupItems.filter(i => i.selected);
     if (!sel.length) { toast(t('backup.selectItems'), 'warn'); return; }
-    if (!BK.srv.ssdMount) { toast(t('backup.noMountPoint'), 'warn'); return; }
+    const mount = bkActiveSsdMount();
+    if (!mount) { toast(t('backup.ssdNotMounted'), 'warn'); return; }
 
     try {
-        const chk = await execSSH(BK.srv, `mountpoint -q ${bq(BK.srv.ssdMount)} && echo MOUNTED || echo NOT_MOUNTED`);
+        const chk = await execSSH(BK.srv, `mountpoint -q ${bq(mount)} && echo MOUNTED || echo NOT_MOUNTED`);
         if (!(chk.stdOut || '').includes('MOUNTED')) {
             toast(t('backup.ssdNotMounted'), 'warn');
             return;
@@ -492,7 +680,8 @@ async function bkRunDeleteBkup() {
     if (BK.busy || !BK.srv) return;
     const sel = BK.bkupItems.filter(i => i.selected);
     if (!sel.length) { toast(t('backup.selectItems'), 'warn'); return; }
-    if (!BK.srv.ssdMount) { toast(t('backup.noMountPoint'), 'warn'); return; }
+    const mount = bkActiveSsdMount();
+    if (!mount) { toast(t('backup.ssdNotMounted'), 'warn'); return; }
 
     if (!confirm(t('confirm.bkDeleteBkup', { count: sel.length }))) return;
 
@@ -503,11 +692,11 @@ async function bkRunDeleteBkup() {
         for (const item of sel) {
             let filePath;
             if (BK.subTab === 'docker') {
-                filePath = BK.srv.ssdMount + '/docker_backup/' + item.name;
+                filePath = mount + '/docker_backup/' + item.name;
             } else if (BK.subTab === 'hf') {
-                filePath = BK.srv.ssdMount + '/huggingface_backup/' + item.name + '.tar';
+                filePath = mount + '/huggingface_backup/' + item.name + '.tar';
             } else {
-                filePath = BK.srv.ssdMount + '/gguf_backup/' + item.name;
+                filePath = mount + '/gguf_backup/' + item.name;
             }
             bkLog('Deleting backup: ' + item.name);
             const cmd = `rm ${bq(filePath)}`;
@@ -530,7 +719,8 @@ async function bkRunDeleteBkup() {
 // ── Docker backup/restore ────────────────────────────────────
 
 async function bkBackupDocker(sel) {
-    const backupDir = BK.srv.ssdMount + '/docker_backup';
+    const mount = bkActiveSsdMount();
+    const backupDir = mount + '/docker_backup';
     const mkdirCmd = `mkdir -p ${bq(backupDir)}`;
     const mkdirRes = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, mkdirCmd) : mkdirCmd);
     if (mkdirRes.stdErr && mkdirRes.stdErr.trim()) bkLog(mkdirRes.stdErr.trim(), 'warn');
@@ -539,7 +729,7 @@ async function bkBackupDocker(sel) {
         if (!BK.busy) break;
         const fname = item.name.replace(/[/:]/g, '_') + '.tar';
         const outPath = backupDir + '/' + fname;
-        bkLog('Backing up: ' + item.name + '  →  ' + fname);
+        bkLog('Backing up: ' + item.name + '  \u2192  ' + fname);
         const testDkBk = `test -f ${bq(outPath)} && echo __SKIP__ || echo __RUN__`;
         const chk = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, testDkBk) : testDkBk);
         if ((chk.stdOut || '').includes('__SKIP__')) {
@@ -547,7 +737,6 @@ async function bkBackupDocker(sel) {
             continue;
         }
         if (BK.srv.useSudo) {
-            // sudo bash -c '...' so both docker and file write run under root
             const res = await execSSH(BK.srv, wrapSudo(BK.srv, `docker save ${bq(item.name)} > ${bq(outPath)}`));
             if (res.stdErr && res.stdErr.trim()) bkLog(res.stdErr.trim(), 'warn');
         } else {
@@ -558,14 +747,13 @@ async function bkBackupDocker(sel) {
     }
 }
 
-// sel is from BK.bkupItems — item.name is the .tar filename (e.g. ubuntu_latest.tar)
 async function bkRestoreDocker(sel) {
-    const backupDir = BK.srv.ssdMount + '/docker_backup';
+    const mount = bkActiveSsdMount();
+    const backupDir = mount + '/docker_backup';
     for (const item of sel) {
         if (!BK.busy) break;
         const tarPath = backupDir + '/' + item.name;
         bkLog('Restoring: ' + item.name);
-        // Extract original image name from manifest.json inside tar
         const manifestCmd = `tar xOf ${bq(tarPath)} manifest.json 2>/dev/null | grep -oP '(?<="RepoTags":\\[")[^"]+' | head -1`;
         const mRes = await execSSH(BK.srv, BK.srv.useSudo ? wrapSudo(BK.srv, manifestCmd) : manifestCmd);
         const imageName = (mRes.stdOut || '').trim();
@@ -578,7 +766,6 @@ async function bkRestoreDocker(sel) {
             }
         }
         if (BK.srv.useSudo) {
-            // sudo bash -c '...' so both file read and docker load run under root
             const res = await execSSH(BK.srv, wrapSudo(BK.srv, `docker load -i ${bq(tarPath)}`));
             if (res.stdOut && res.stdOut.trim()) bkLog(res.stdOut.trim());
             if (res.stdErr && res.stdErr.trim()) bkLog(res.stdErr.trim(), 'warn');
@@ -595,7 +782,8 @@ async function bkRestoreDocker(sel) {
 
 async function bkBackupHF(sel) {
     if (!BK.srv.hfHubPath) throw new Error(t('backup.noHfPath'));
-    const backupDir = BK.srv.ssdMount + '/huggingface_backup';
+    const mount = bkActiveSsdMount();
+    const backupDir = mount + '/huggingface_backup';
     await execSSH(BK.srv, BK.srv.useSudo
         ? wrapSudo(BK.srv, `mkdir -p ${bq(backupDir)}`)
         : `mkdir -p ${bq(backupDir)}`);
@@ -617,10 +805,10 @@ async function bkBackupHF(sel) {
     }
 }
 
-// sel is from BK.bkupItems — item.name is the model name (without .tar)
 async function bkRestoreHF(sel) {
     if (!BK.srv.hfHubPath) throw new Error(t('backup.noHfPath'));
-    const backupDir = BK.srv.ssdMount + '/huggingface_backup';
+    const mount = bkActiveSsdMount();
+    const backupDir = mount + '/huggingface_backup';
     await execSSH(BK.srv, BK.srv.useSudo
         ? wrapSudo(BK.srv, `mkdir -p ${bq(BK.srv.hfHubPath)}`)
         : `mkdir -p ${bq(BK.srv.hfHubPath)}`);
@@ -647,7 +835,8 @@ async function bkRestoreHF(sel) {
 
 async function bkBackupGGUF(sel) {
     if (!BK.srv.ggufPath) throw new Error(t('backup.noGgufPath'));
-    const backupDir = BK.srv.ssdMount + '/gguf_backup';
+    const mount = bkActiveSsdMount();
+    const backupDir = mount + '/gguf_backup';
     await execSSH(BK.srv, BK.srv.useSudo
         ? wrapSudo(BK.srv, `mkdir -p ${bq(backupDir)}`)
         : `mkdir -p ${bq(backupDir)}`);
@@ -671,10 +860,10 @@ async function bkBackupGGUF(sel) {
     }
 }
 
-// sel is from BK.bkupItems — item.name is the .gguf filename
 async function bkRestoreGGUF(sel) {
     if (!BK.srv.ggufPath) throw new Error(t('backup.noGgufPath'));
-    const backupDir = BK.srv.ssdMount + '/gguf_backup';
+    const mount = bkActiveSsdMount();
+    const backupDir = mount + '/gguf_backup';
     await execSSH(BK.srv, BK.srv.useSudo
         ? wrapSudo(BK.srv, `mkdir -p ${bq(BK.srv.ggufPath)}`)
         : `mkdir -p ${bq(BK.srv.ggufPath)}`);
@@ -702,7 +891,8 @@ async function bkRestoreGGUF(sel) {
 
 async function bkLoadBackupList() {
     if (!BK.srv) return;
-    if (!BK.srv.ssdMount) { toast(t('backup.noMountPoint'), 'warn'); return; }
+    const mount = bkActiveSsdMount();
+    if (!mount) { toast(t('backup.ssdNotMounted'), 'warn'); return; }
 
     document.getElementById('btnBkLoadBkup').disabled = true;
     bkRenderBkupPlaceholder(t('backup.loading'));
@@ -719,7 +909,7 @@ async function bkLoadBackupList() {
         }
     } catch (e) {
         bkLog('Load backups error: ' + (e.message || String(e)), 'err');
-        bkRenderBkupPlaceholder('⚠ ' + (e.message || String(e)));
+        bkRenderBkupPlaceholder('\u26a0 ' + (e.message || String(e)));
         document.getElementById('btnBkLoadBkup').disabled = false;
         return;
     }
@@ -729,8 +919,8 @@ async function bkLoadBackupList() {
 }
 
 async function bkListDockerBackups() {
-    const dir = BK.srv.ssdMount + '/docker_backup';
-    // du -sh with size info, tab-separated
+    const mount = bkActiveSsdMount();
+    const dir = mount + '/docker_backup';
     const res = await execSSH(BK.srv,
         `du -sh ${bq(dir)}/*.tar 2>/dev/null | awk '{split($2,a,"/"); print a[length(a)] "\\t" $1}' || true`);
     const out = (res.stdOut || '').trim();
@@ -742,8 +932,8 @@ async function bkListDockerBackups() {
 }
 
 async function bkListHFBackups() {
-    const dir = BK.srv.ssdMount + '/huggingface_backup';
-    // List model names (strip .tar extension) with sizes
+    const mount = bkActiveSsdMount();
+    const dir = mount + '/huggingface_backup';
     const res = await execSSH(BK.srv,
         `du -sh ${bq(dir)}/*.tar 2>/dev/null | awk '{split($2,a,"/"); gsub(/\\.tar$/,"",a[length(a)]); print a[length(a)] "\\t" $1}' || true`);
     const out = (res.stdOut || '').trim();
@@ -755,8 +945,8 @@ async function bkListHFBackups() {
 }
 
 async function bkListGGUFBackups() {
-    const dir = BK.srv.ssdMount + '/gguf_backup';
-    // du -sh with size info on .gguf files
+    const mount = bkActiveSsdMount();
+    const dir = mount + '/gguf_backup';
     const res = await execSSH(BK.srv,
         `du -sh ${bq(dir)}/*.gguf 2>/dev/null | awk '{split($2,a,"/"); print a[length(a)] "\\t" $1}' || true`);
     const out = (res.stdOut || '').trim();
@@ -821,7 +1011,7 @@ function bkLogSetCollapsed(collapsed) {
     const btn = document.getElementById('btnBkToggleLog');
     log.classList.toggle('log-collapsed', collapsed);
     if (handle) handle.style.display = collapsed ? 'none' : '';
-    if (btn) btn.textContent = collapsed ? '▲' : '▼';
+    if (btn) btn.textContent = collapsed ? '\u25b2' : '\u25bc';
 }
 
 async function bkLogToggle() {
@@ -847,7 +1037,7 @@ Neutralino.events.on('ready', async () => {
 
 // ── Sub-tab switch ───────────────────────────────────────────
 function bkSwitchSubTab(tab) {
-    if (BK.subTab === tab) return;   // 같은 탭 재클릭 시 목록 유지
+    if (BK.subTab === tab) return;
     BK.subTab = tab;
     BK.items = [];
     BK.bkupItems = [];
@@ -860,6 +1050,6 @@ function bkSwitchSubTab(tab) {
     // Auto-load on tab switch
     if (BK.srv) {
         bkLoadList();
-        if (BK.mounted) bkLoadBackupList();
+        if (bkActiveSsdMount()) bkLoadBackupList();
     }
 }

@@ -43,6 +43,9 @@ Neutralino.events.on('ready', async () => {
     await initMasterKey();
     S.servers = await loadServers();
 
+    // Migrate old ssdDevice/ssdMount → ssds[] format
+    if (migrateServerSsds(S.servers)) await saveServers();
+
     // Initialize i18n — load saved language, apply to DOM
     await initI18n();
 
@@ -188,7 +191,8 @@ Neutralino.events.on('ready', async () => {
         BK.srv = S.servers.find(s => s.id === id) || null;
         BK.items = [];
         BK.bkupItems = [];
-        BK.mounted = false;
+        BK.ssdStates = [];
+        BK.activeSsdIdx = -1;
         const dotBk = document.getElementById('dotBk');
         const editBk = document.getElementById('btnEditBk');
         dotBk.className = 'conn-dot' + (BK.srv ? ' loading' : '');
@@ -210,19 +214,32 @@ Neutralino.events.on('ready', async () => {
                 setStatus(t('status.connFail', { alias }));
                 return;
             }
-            await bkCheckMount();
+            await bkCheckAllMounts();
             dotBk.className = 'conn-dot ok';
             setStatus(t('status.connected', { alias }));
-            // Auto-load server list; backup list loads only if SSD is mounted
+            // Auto-load server list; backup list loads only if an SSD is mounted
             bkLoadList();
-            if (BK.mounted) bkLoadBackupList();
+            if (bkActiveSsdMount()) bkLoadBackupList();
         }
     };
     document.getElementById('btnEditBk').onclick = () => BK.srv && openModal(BK.srv.id);
 
-    // ── Mount controls ────────────────────────────────────────
-    document.getElementById('btnMount').onclick = bkMount;
-    document.getElementById('btnUnmount').onclick = bkUnmount;
+    // ── Add SSD button in modal ────────────────────────────────
+    document.getElementById('btnAddSsd').onclick = () => {
+        _modalSsds.push({ alias: '', device: '', mount: '' });
+        renderSsdList();
+    };
+
+    // ── SSD select dropdown in backup tab ─────────────────────
+    document.getElementById('bkSsdSelect').onchange = (e) => {
+        BK.activeSsdIdx = parseInt(e.target.value);
+        BK.bkupItems = [];
+        bkRenderBkupList();
+        if (bkActiveSsdMount()) {
+            bkLoadBackupList();
+            bkFetchDiskInfo();
+        }
+    };
 
     // ── Backup actions ────────────────────────────────────────
     document.getElementById('btnBkLoad').onclick = bkLoadList;

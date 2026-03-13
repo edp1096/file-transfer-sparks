@@ -1,6 +1,83 @@
 "use strict";
 
 // ============================================================
+// MULTI-SSD — modal-local SSD list
+// ============================================================
+let _modalSsds = [];   // [{alias, device, mount}] — temporary while modal is open
+
+/** Convert /dev/sda1 → /mnt/sda1 */
+function deviceToMount(device) {
+    const name = device.replace(/^\/dev\//, '');
+    return '/mnt/' + name;
+}
+
+/** Migrate old ssdDevice/ssdMount → ssds[] for all servers (in-place). Returns true if any changed. */
+function migrateServerSsds(servers) {
+    let changed = false;
+    for (const srv of servers) {
+        if (srv.ssds) continue;  // already migrated
+        srv.ssds = [];
+        if (srv.ssdDevice) {
+            srv.ssds.push({
+                alias: '',
+                device: srv.ssdDevice,
+                mount: srv.ssdMount || deviceToMount(srv.ssdDevice)
+            });
+        }
+        delete srv.ssdDevice;
+        delete srv.ssdMount;
+        changed = true;
+    }
+    return changed;
+}
+
+/** Render the SSD list inside the modal's #ssdListContainer */
+function renderSsdList() {
+    const container = document.getElementById('ssdListContainer');
+    if (!container) return;
+
+    if (_modalSsds.length === 0) {
+        container.innerHTML = `<div class="ssd-empty">${escHtml(t('modal.ssdEmpty'))}</div>`;
+        return;
+    }
+
+    container.innerHTML = _modalSsds.map((ssd, idx) =>
+        `<div class="ssd-entry" data-ssd-idx="${idx}">
+          <div class="ssd-entry-fields">
+            <input type="text" class="form-input" style="width:90px" placeholder="${escHtml(t('modal.ssdAliasPlaceholder'))}" value="${escHtml(ssd.alias)}" data-ssd-field="alias">
+            <input type="text" class="form-input" style="flex:1;min-width:100px" placeholder="${escHtml(t('modal.ssdDevicePlaceholder'))}" value="${escHtml(ssd.device)}" data-ssd-field="device">
+            <span class="ssd-entry-mount">${escHtml(t('modal.ssdMountAuto', { mount: ssd.mount || '—' }))}</span>
+          </div>
+          <button class="btn btn-sm btn-danger" data-ssd-remove="${idx}">${escHtml(t('modal.ssdRemove'))}</button>
+        </div>`
+    ).join('');
+
+    // Bind input changes
+    container.querySelectorAll('[data-ssd-field]').forEach(input => {
+        input.addEventListener('input', () => {
+            const entry = input.closest('.ssd-entry');
+            const idx = parseInt(entry.dataset.ssdIdx);
+            const field = input.dataset.ssdField;
+            _modalSsds[idx][field] = input.value.trim();
+            if (field === 'device' && _modalSsds[idx].device) {
+                _modalSsds[idx].mount = deviceToMount(_modalSsds[idx].device);
+                const mountLabel = entry.querySelector('.ssd-entry-mount');
+                if (mountLabel) mountLabel.textContent = t('modal.ssdMountAuto', { mount: _modalSsds[idx].mount });
+            }
+        });
+    });
+
+    // Bind remove buttons
+    container.querySelectorAll('[data-ssd-remove]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const idx = parseInt(btn.dataset.ssdRemove);
+            _modalSsds.splice(idx, 1);
+            renderSsdList();
+        });
+    });
+}
+
+// ============================================================
 // TEST HELPERS
 // ============================================================
 
@@ -66,7 +143,14 @@ async function scanSsdDevices() {
             document.getElementById('btnScanUse').onclick = () => {
                 const sel = document.getElementById('scanSelect');
                 if (sel) {
-                    document.getElementById('fSsdDevice').value = sel.value;
+                    const dev = sel.value;
+                    // Check for duplicate
+                    if (_modalSsds.some(s => s.device === dev)) {
+                        toast(t('modal.ssdAlreadyAdded'), 'warn');
+                        return;
+                    }
+                    _modalSsds.push({ alias: '', device: dev, mount: deviceToMount(dev) });
+                    renderSsdList();
                     resultEl.style.display = 'none';
                 }
             };
@@ -292,8 +376,9 @@ function openModal(editId) {
     document.getElementById('fClientPath').value = srv?.clientPath || (NL_OS === 'Windows' ? '.\\ssh-client.exe' : './ssh-client');
     document.getElementById('fPrefix').value = srv?.customPrefix || '';
     document.getElementById('fUseSudo').checked = srv?.useSudo || false;
-    document.getElementById('fSsdDevice').value = srv?.ssdDevice || '';
-    document.getElementById('fSsdMount').value = srv?.ssdMount || '';
+    // Multi-SSD list
+    _modalSsds = (srv?.ssds || []).map(s => ({ ...s }));
+    renderSsdList();
     document.getElementById('fHfHubPath').value = srv?.hfHubPath || '';
     document.getElementById('fGgufPath').value = srv?.ggufPath || '';
     document.getElementById('scanResult').style.display = 'none';
@@ -350,8 +435,11 @@ async function saveServer() {
         return;
     }
 
-    const ssdDevice = document.getElementById('fSsdDevice').value.trim();
-    const ssdMount = document.getElementById('fSsdMount').value.trim();
+    const ssds = _modalSsds.filter(s => s.device).map(s => ({
+        alias: s.alias || '',
+        device: s.device,
+        mount: s.mount || deviceToMount(s.device)
+    }));
     const hfHubPath = document.getElementById('fHfHubPath').value.trim();
     const ggufPath = document.getElementById('fGgufPath').value.trim();
 
@@ -362,7 +450,7 @@ async function saveServer() {
         clientPath: authType === 'PASSWORD' ? clientPath : '',
         customPrefix: authType === 'CUSTOM' ? prefix : '',
         credential: (authType === 'PASSWORD' || authType === 'CUSTOM') ? cred : '',
-        ssdDevice, ssdMount, hfHubPath, ggufPath
+        ssds, hfHubPath, ggufPath
     };
 
     if (S.editId) {
@@ -371,7 +459,12 @@ async function saveServer() {
         // Keep active panel references up to date
         if (S.srvA?.id === S.editId) S.srvA = srv;
         if (S.srvB?.id === S.editId) S.srvB = srv;
-        if (BK.srv?.id === S.editId) BK.srv = srv;
+        if (BK.srv?.id === S.editId) {
+            BK.srv = srv;
+            // Refresh backup tab UI with updated SSD config
+            bkUpdateState();
+            bkCheckAllMounts();
+        }
     } else {
         S.servers.push(srv);
     }
