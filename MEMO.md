@@ -1,5 +1,5 @@
 ## make
 ```sh
-make release V=v0.0.10 DESC="misc."
+make release V=v0.0.14 DESC="Support multiple external ssd"
 make dist
 ```
