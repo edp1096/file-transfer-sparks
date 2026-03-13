@@ -62,7 +62,7 @@ async function scanSsdDevices() {
             ).join('');
             resultEl.innerHTML =
                 `<select id="scanSelect">${opts}</select>` +
-                `<button class="btn btn-sm btn-primary" id="btnScanUse" style="align-self:flex-start">${escHtml(t('modal.ssdScan'))} ✓</button>`;
+                `<button class="btn btn-sm btn-primary" id="btnScanUse" style="align-self:flex-start">${escHtml(t('modal.ssdSelect'))} ✓</button>`;
             document.getElementById('btnScanUse').onclick = () => {
                 const sel = document.getElementById('scanSelect');
                 if (sel) {
@@ -371,6 +371,7 @@ async function saveServer() {
         // Keep active panel references up to date
         if (S.srvA?.id === S.editId) S.srvA = srv;
         if (S.srvB?.id === S.editId) S.srvB = srv;
+        if (BK.srv?.id === S.editId) BK.srv = srv;
     } else {
         S.servers.push(srv);
     }
