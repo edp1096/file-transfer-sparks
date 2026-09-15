@@ -3,46 +3,33 @@
 // ============================================================
 // SSH COMMAND BUILDER
 // ============================================================
-function sshPrefix(srv) {
-    const opts = `-o StrictHostKeyChecking=no -o ConnectTimeout=15 -o ServerAliveInterval=30 -p ${srv.port}`;
-    if (srv.authType === 'KEY') {
-        // Normalize backslashes so OpenSSH on Windows accepts the path
-        const kp = srv.keyPath.replace(/\\/g, '/');
-        return `ssh ${opts} -i "${kp}"`;
-    }
-    // AGENT: rely on system SSH agent, no extra flags needed
-    return `ssh ${opts}`;
-}
-
-// Encode remote command as base64 so Windows cmd.exe / PowerShell
-// cannot interpret shell metacharacters ( | & > < ( ) $ ` etc.)
-// Base64 alphabet [A-Za-z0-9+/=] contains no cmd.exe special chars.
+// Standard authentication uses argv, keeping passwords, paths and remote shell
+// syntax out of the local shell. Only the explicit CUSTOM template uses a shell.
 function b64cmd(remoteCmd) {
     return btoa(unescape(encodeURIComponent(remoteCmd)));
 }
 
 function buildSSH(srv, remoteCmd) {
-    if (srv.authType === 'PASSWORD') {
-        // Use -b64cmd flag: base64-encoded command bypasses all Windows shell quoting issues
-        const bin = srv.clientPath || (NL_OS === 'Windows' ? '.\\ssh-client.exe' : './ssh-client');
-        return `${bin} -l ${srv.username} -passwd ${srv.credential || ''} -p ${srv.port} -b64cmd ${b64cmd(remoteCmd)} ${srv.sshHost}`;
-    }
-
     if (srv.authType === 'CUSTOM') {
-        // Full command template — placeholders replaced verbatim:
-        //   {USERNAME} {PASSWD} {PORT} {HOST} {CMD}
         const escaped = remoteCmd.replace(/"/g, '\\"');
-        return (srv.customPrefix || '')
+        return { shell: (srv.customPrefix || '')
             .replace('{USERNAME}', srv.username)
             .replace('{PASSWD}', srv.credential || '')
             .replace('{PORT}', String(srv.port))
             .replace('{HOST}', srv.sshHost)
-            .replace('{CMD}', `"${escaped}"`);
+            .replace('{CMD}', `"${escaped}"`) };
     }
-
-    // Standard SSH — AGENT or KEY
-    const escaped = remoteCmd.replace(/"/g, '\\"');
-    return `${sshPrefix(srv)} ${srv.username}@${srv.sshHost} "${escaped}"`;
+    if (srv.authType === 'PASSWORD') {
+        return {
+            executable: (srv.clientPath || (Desktop.platform === 'Windows' ? '.\\ssh-client.exe' : './ssh-client')).replace(/^"(.*)"$/, '$1'),
+            args: ['-l', srv.username, '-passwd', srv.credential || '', '-p', String(srv.port), '-b64cmd', b64cmd(remoteCmd), srv.sshHost]
+        };
+    }
+    const args = ['-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15',
+        '-o', 'ServerAliveInterval=30', '-p', String(srv.port)];
+    if (srv.authType === 'KEY') args.push('-i', srv.keyPath);
+    args.push(`${srv.username}@${srv.sshHost}`, remoteCmd);
+    return { executable: 'ssh', args };
 }
 
 // Wrap a remote command with sudo. Uses the login password via echo | sudo -S.
@@ -57,7 +44,7 @@ function wrapSudo(srv, cmd) {
 function bq(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
 
 async function execSSH(srv, cmd) {
-    return Neutralino.os.execCommand(buildSSH(srv, cmd));
+    return Desktop.os.execCommand(buildSSH(srv, cmd));
 }
 
 // ============================================================

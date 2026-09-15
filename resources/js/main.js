@@ -37,9 +37,9 @@ const S = {
 // ============================================================
 // INIT
 // ============================================================
-Neutralino.init();
+Desktop.init();
 
-Neutralino.events.on('ready', async () => {
+Desktop.events.on('ready', async () => {
     await initMasterKey();
     S.servers = await loadServers();
 
@@ -66,7 +66,7 @@ Neutralino.events.on('ready', async () => {
 
     // Restore saved sort state
     try {
-        const saved = JSON.parse(await Neutralino.storage.getData('panelSort'));
+        const saved = JSON.parse(await Desktop.storage.getData('panelSort'));
         if (saved?.A?.col) { S.sortA.col = saved.A.col; S.sortA.dir = saved.A.dir === -1 ? -1 : 1; }
         if (saved?.B?.col) { S.sortB.col = saved.B.col; S.sortB.dir = saved.B.dir === -1 ? -1 : 1; }
         updateSortHeader('A'); updateSortHeader('B');
@@ -92,7 +92,7 @@ Neutralino.events.on('ready', async () => {
     // ── Column sort headers ───────────────────────────────────
     const SORT_KEY = 'panelSort';
     async function saveSortState() {
-        try { await Neutralino.storage.setData(SORT_KEY, JSON.stringify({ A: S.sortA, B: S.sortB })); } catch {}
+        try { await Desktop.storage.setData(SORT_KEY, JSON.stringify({ A: S.sortA, B: S.sortB })); } catch {}
     }
     ['A', 'B'].forEach(side => {
         document.getElementById('listHeader' + side).querySelectorAll('.col-wrap').forEach(wrap => {

@@ -11,7 +11,7 @@ async function themeToggle() {
     const current = document.documentElement.getAttribute('data-theme') || 'dark';
     const next = current === 'dark' ? 'light' : 'dark';
     themeApply(next);
-    try { await Neutralino.storage.setData(THEME_KEY, next); } catch {}
+    try { await Desktop.storage.setData(THEME_KEY, next); } catch {}
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -24,14 +24,14 @@ document.addEventListener('DOMContentLoaded', () => {
     aboutModal.addEventListener('click', e => { if (e.target === aboutModal) aboutModal.classList.remove('open'); });
     document.getElementById('aboutGithub').addEventListener('click', e => {
         e.preventDefault();
-        Neutralino.os.open('https://github.com/edp1096/file-transfer-sparks');
+        Desktop.os.open('https://github.com/edp1096/file-transfer-sparks');
     });
 });
 
-Neutralino.events.on('ready', async () => {
+Desktop.events.on('ready', async () => {
     const osDefault = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
     try {
-        const saved = await Neutralino.storage.getData(THEME_KEY);
+        const saved = await Desktop.storage.getData(THEME_KEY);
         themeApply(saved || osDefault);
     } catch {
         themeApply(osDefault);
@@ -39,7 +39,7 @@ Neutralino.events.on('ready', async () => {
 
     // About — version
     try {
-        const cfg = await Neutralino.app.getConfig();
+        const cfg = await Desktop.app.getConfig();
         const el = document.getElementById('aboutVersion');
         if (el && cfg.version) el.textContent = 'v' + cfg.version;
     } catch {}
@@ -73,7 +73,7 @@ function zoomApply() {
 }
 
 async function zoomSave() {
-    try { await Neutralino.storage.setData(ZOOM.key, String(ZOOM.level)); } catch {}
+    try { await Desktop.storage.setData(ZOOM.key, String(ZOOM.level)); } catch {}
 }
 
 function zoomIn() {
@@ -98,10 +98,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnZoomReset').addEventListener('click', zoomReset);
 });
 
-// Neutralino 준비 후 저장된 배율 복원
-Neutralino.events.on('ready', async () => {
+// 데스크톱 서비스 연결 후 저장된 배율 복원
+Desktop.events.on('ready', async () => {
     try {
-        const saved = await Neutralino.storage.getData(ZOOM.key);
+        const saved = await Desktop.storage.getData(ZOOM.key);
         ZOOM.level = parseFloat(saved) || 1.0;
     } catch {
         ZOOM.level = 1.0;

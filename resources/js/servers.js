@@ -373,7 +373,7 @@ function openModal(editId) {
     document.getElementById('fUsername').value = srv?.username || '';
     document.getElementById('fPort').value = srv?.port || 22;
     document.getElementById('fKeyPath').value = srv?.keyPath || '';
-    document.getElementById('fClientPath').value = srv?.clientPath || (NL_OS === 'Windows' ? '.\\ssh-client.exe' : './ssh-client');
+    document.getElementById('fClientPath').value = srv?.clientPath || (Desktop.platform === 'Windows' ? '.\\ssh-client.exe' : './ssh-client');
     document.getElementById('fPrefix').value = srv?.customPrefix || '';
     document.getElementById('fUseSudo').checked = srv?.useSudo || false;
     // Multi-SSD list

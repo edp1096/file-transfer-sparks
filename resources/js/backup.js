@@ -1017,7 +1017,7 @@ function bkLogSetCollapsed(collapsed) {
 async function bkLogToggle() {
     const collapsed = !document.getElementById('bkBottomLog').classList.contains('log-collapsed');
     bkLogSetCollapsed(collapsed);
-    try { await Neutralino.storage.setData('bkLogVisible', collapsed ? '0' : '1'); } catch {}
+    try { await Desktop.storage.setData('bkLogVisible', collapsed ? '0' : '1'); } catch {}
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1026,9 +1026,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnBkDeleteBkup').addEventListener('click', bkRunDeleteBkup);
 });
 
-Neutralino.events.on('ready', async () => {
+Desktop.events.on('ready', async () => {
     try {
-        const val = await Neutralino.storage.getData('bkLogVisible');
+        const val = await Desktop.storage.getData('bkLogVisible');
         bkLogSetCollapsed(val === '0');
     } catch {
         bkLogSetCollapsed(false);

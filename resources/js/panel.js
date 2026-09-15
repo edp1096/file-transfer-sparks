@@ -406,11 +406,11 @@ async function initColResize() {
             size: parseInt(root.style.getPropertyValue('--col-w-size')) || 72,
             mtime: parseInt(root.style.getPropertyValue('--col-w-mtime')) || 140
         };
-        try { await Neutralino.storage.setData(COL_KEY, JSON.stringify(w)); } catch {}
+        try { await Desktop.storage.setData(COL_KEY, JSON.stringify(w)); } catch {}
     }
 
     // Load saved column widths
-    try { applyColWidths(JSON.parse(await Neutralino.storage.getData(COL_KEY))); } catch {}
+    try { applyColWidths(JSON.parse(await Desktop.storage.getData(COL_KEY))); } catch {}
 
     // Sync horizontal scroll: body → header
     ['A', 'B'].forEach(side => {
@@ -453,7 +453,7 @@ async function initColResize() {
                     size: parseInt(root.style.getPropertyValue('--col-w-size')) || 72,
                     mtime: parseInt(root.style.getPropertyValue('--col-w-mtime')) || 140
                 };
-                try { await Neutralino.storage.setData(COL_KEY, JSON.stringify(w)); } catch {}
+                try { await Desktop.storage.setData(COL_KEY, JSON.stringify(w)); } catch {}
             }
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup', onUp);

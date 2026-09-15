@@ -7,8 +7,8 @@ async function initMasterKey() {
     // Use machine identity as salt so the encrypted file is tied to this machine
     let salt = 'DGXTransfer-salt-default';
     try {
-        const u = await Neutralino.os.getEnv('USERNAME');
-        const c = await Neutralino.os.getEnv('COMPUTERNAME');
+        const u = await Desktop.os.getEnv('USERNAME');
+        const c = await Desktop.os.getEnv('COMPUTERNAME');
         if (u || c) salt = 'DGXTransfer-' + (u || 'u') + '-' + (c || 'c');
     } catch (_) { }
 
@@ -43,27 +43,20 @@ async function aesDecrypt(b64) {
 
 // ============================================================
 // STORAGE  — portable: saved next to the executable as servers.enc
-// NL_PATH is the app root directory provided by Neutralinojs runtime
 // ============================================================
-function storePath() {
-    // NL_PATH ends without separator; append platform separator + filename
-    const sep = NL_OS === 'Windows' ? '\\' : '/';
-    return NL_PATH + sep + 'servers.enc';
-}
-
 async function loadServers() {
     try {
-        const raw = await Neutralino.filesystem.readFile(storePath());
+        const raw = await Desktop.servers.read();
         return JSON.parse(await aesDecrypt(raw.trim()));
-    } catch (_) {
-        // File missing or first run — return empty list
-        return [];
+    } catch (error) {
+        if (error.code === "NOT_FOUND") return [];
+        throw new Error("Cannot load servers.enc; existing server settings were preserved. " + error.message);
     }
 }
 
 async function saveServers() {
     try {
-        await Neutralino.filesystem.writeFile(storePath(), await aesEncrypt(JSON.stringify(S.servers)));
+        await Desktop.servers.write(await aesEncrypt(JSON.stringify(S.servers)));
     } catch (e) {
         toast(t('toast.saveFail', { msg: e.message }), 'err');
     }

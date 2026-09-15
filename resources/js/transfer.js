@@ -26,6 +26,42 @@ async function checkDockerDiskSpace(srv) {
     }
 }
 
+// Each transfer owns its process IDs. Cancellation during preparation must never
+// start a sender later or overwrite the state of a subsequent transfer.
+function beginTransferRun(dir) {
+    const run = { cancelled: false, pids: new Set(), dir, port: null, receiver: dir === 'AB' ? S.srvB : S.srvA };
+    S.transferRun = run;
+    return run;
+}
+function assertTransferRun(run) {
+    if (run.cancelled || S.transferRun !== run) throw new Error('Transfer cancelled');
+}
+async function transferStep(run, operation) {
+    assertTransferRun(run);
+    const result = await operation();
+    assertTransferRun(run);
+    return result;
+}
+async function spawnTransferProcess(run, command) {
+    assertTransferRun(run);
+    const proc = await Desktop.os.spawnProcess(command);
+    if (run.cancelled || S.transferRun !== run) {
+        await Desktop.os.updateSpawnedProcess(proc.id);
+        throw new Error('Transfer cancelled');
+    }
+    run.pids.add(proc.id);
+    return proc;
+}
+async function stopTransferRun(run) {
+    if (!run) return;
+    run.cancelled = true;
+    await Promise.all([...run.pids].map(id => Desktop.os.updateSpawnedProcess(id).catch(() => {})));
+    const dstSrv = run.receiver;
+    if (dstSrv && run.port) {
+        try { await execSSH(dstSrv, `pkill -f "nc -l.*${run.port}" 2>/dev/null || true`); } catch (_) {}
+    }
+}
+
 async function startTransfer(dir) {
     if (S.busy) return;
 
@@ -46,9 +82,11 @@ async function startTransfer(dir) {
     if (!srcPath || !dstPath) { toast(t('toast.bothPathsNeeded'), 'warn'); return; }
     if (sel.size === 0) { toast(t('toast.selectFiles'), 'warn'); return; }
 
+    const run = beginTransferRun(dir);
     S.busy = true;
     S.tDir = dir;
     S.tPort = Math.floor(Math.random() * (PORT_MAX - PORT_MIN)) + PORT_MIN;
+    run.port = S.tPort;
     S.senderExitCode = null;
     S.recvExitCode = null;
     updateTransferBtns();
@@ -61,11 +99,11 @@ async function startTransfer(dir) {
 
         // For size calc: still use full paths
         const srcPaths = fileNames.map(n => joinPath(srcPath, n));
-        S.tBytes = await getTransferSize(srcSrv, srcPaths);
+        S.tBytes = await transferStep(run, () => getTransferSize(srcSrv, srcPaths));
 
         // Check if pv is available on the source server
         setStatus(t('status.checkEnv'));
-        const hasPv = await checkPv(srcSrv);
+        const hasPv = await transferStep(run, () => checkPv(srcSrv));
         if (!hasPv) toast(t('toast.noPv'), 'warn');
 
         showProgress(dir, S.tBytes, hasPv);
@@ -73,7 +111,7 @@ async function startTransfer(dir) {
 
         // Kill any stale nc listener on receiver from a previous failed run
         try { await execSSH(dstSrv, `pkill -f "nc -l.*${S.tPort}" 2>/dev/null || true`); } catch (_) { }
-        await sleep(400);
+        await transferStep(run, () => sleep(400));
 
         // Step 1: Start receiver
         // useSudo: wrap tar with sudo using login password.
@@ -82,11 +120,11 @@ async function startTransfer(dir) {
         let recvInner = `mkdir -p ${bq(dstPath)} && nc -l ${S.tPort} | tar -xf - -C ${bq(dstPath)}`;
         if (dstSrv.useSudo) recvInner = wrapSudo(dstSrv, recvInner);
         const recvCmd = buildSSH(dstSrv, recvInner);
-        const recvProc = await Neutralino.os.spawnProcess(recvCmd);
+        const recvProc = await spawnTransferProcess(run, recvCmd);
         S.recvPid = recvProc.id;
 
         // Step 2: Give receiver time to bind the nc port before sender connects.
-        await sleep(1200);
+        await transferStep(run, () => sleep(1200));
 
         // Step 3: Start sender
         setStatus(t('status.transferring', { src: srcSrv.alias, dst: dstSrv.alias }));
@@ -101,38 +139,38 @@ async function startTransfer(dir) {
 
         if (srcSrv.useSudo) sendPipeline = wrapSudo(srcSrv, sendPipeline);
         const sendCmd = buildSSH(srcSrv, sendPipeline);
-        const sendProc = await Neutralino.os.spawnProcess(sendCmd);
+        const sendProc = await spawnTransferProcess(run, sendCmd);
         S.senderPid = sendProc.id;
 
     } catch (e) {
-        onTransferError(String(e.message || e));
+        if (!run.cancelled && S.transferRun === run) await onTransferError(String(e.message || e));
     }
 }
 
 async function cancelTransfer() {
-    if (!S.busy) return;
+    if (!S.busy || S.transferRun?.cancelled) return;
+    const run = S.transferRun;
     setStatus(t('status.cancelling'));
-    // Terminate spawned SSH processes on the Windows side
-    try { if (S.senderPid !== null) await Neutralino.os.updateSpawnedProcess(S.senderPid, 'exit', ''); } catch (_) { }
-    try { if (S.recvPid !== null) await Neutralino.os.updateSpawnedProcess(S.recvPid, 'exit', ''); } catch (_) { }
-    // Also kill the nc listener on the receiver server
-    const dstSrv = S.tDir === 'AB' ? S.srvB : S.srvA;
-    if (dstSrv && S.tPort) {
-        try { await execSSH(dstSrv, `pkill -f "nc -l.*${S.tPort}" 2>/dev/null || true`); } catch (_) { }
-    }
+    await stopTransferRun(run);
+    if (S.transferRun !== run) return;
     resetTransfer();
     hideProgress();
     setStatus(t('status.cancelled'));
     toast(t('toast.transferCancelled'), 'warn');
 }
 
-function onTransferError(msg) {
+async function onTransferError(msg) {
+    const run = S.transferRun;
+    if (run?.cancelled) return;
+    await stopTransferRun(run);
+    if (S.transferRun !== run) return;
     resetTransfer(); hideProgress();
     setStatus(t('status.transferError', { msg }));
     toast(t('toast.error', { msg }), 'err');
 }
 
 function resetTransfer() {
+    S.transferRun = null;
     S.busy = false; S.senderPid = null; S.recvPid = null;
     S.senderExitCode = null; S.recvExitCode = null;
     S.tPort = null; S.tDir = null; S.tBytes = 0; S.tStart = 0;
@@ -143,8 +181,9 @@ function resetTransfer() {
 // ============================================================
 // SPAWN PROCESS EVENT — pv writes percent integers to stderr
 // ============================================================
-Neutralino.events.on('spawnedProcess', evt => {
+Desktop.events.on('spawnedProcess', evt => {
     const { id, action, data } = evt.detail;
+    if (S.transferRun?.cancelled) return;
 
     if (id === S.senderPid) {
         if (action === 'stdErr') {
@@ -157,6 +196,7 @@ Neutralino.events.on('spawnedProcess', evt => {
         if (action === 'exit') {
             S.senderExitCode = parseInt(data);
             console.log('[send] exit code:', S.senderExitCode);
+            if (S.senderExitCode !== 0) { onTransferError('Sender exited: ' + data); return; }
             checkBothDone();
         }
     }
@@ -173,6 +213,7 @@ Neutralino.events.on('spawnedProcess', evt => {
         if (action === 'exit') {
             S.recvExitCode = parseInt(data);
             console.log('[recv] exit code:', S.recvExitCode);
+            if (S.recvExitCode !== 0) { onTransferError('Receiver exited: ' + data); return; }
             checkBothDone();
         }
     }
@@ -184,6 +225,7 @@ function checkBothDone() {
     const recvDone = S.recvExitCode !== null;
     if (!senderDone || !recvDone) return;
 
+    const run = S.transferRun;
     const ok = S.senderExitCode === 0 && S.recvExitCode === 0;
     const fill = document.getElementById('progressFill');
     if (ok) {
@@ -193,14 +235,14 @@ function checkBothDone() {
         document.getElementById('progressEta').textContent = t('progress.etaDone');
         setStatus(t('status.transferDone'));
         toast(t('toast.transferDone'), 'ok');
-        setTimeout(() => loadPanel(S.tDir === 'AB' ? 'B' : 'A'), 600);
+        setTimeout(() => { if (S.transferRun === run) loadPanel(run.dir === 'AB' ? 'B' : 'A'); }, 600);
     } else {
         fill.className = 'progress-fill error';
         const msg = t('status.transferFail', { sendCode: S.senderExitCode, recvCode: S.recvExitCode });
         setStatus(msg);
         toast(msg, 'err');
     }
-    setTimeout(() => { hideProgress(); resetTransfer(); }, 4000);
+    setTimeout(() => { if (S.transferRun === run) { hideProgress(); resetTransfer(); } }, 4000);
 }
 
 // ============================================================
@@ -256,6 +298,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // DOCKER TRANSFER
 // ============================================================
 async function startDockerTransfer(dir) {
+    if (S.busy) return;
     const srcSrv = dir === 'AB' ? S.srvA : S.srvB;
     const dstSrv = dir === 'AB' ? S.srvB : S.srvA;
     const sel = dir === 'AB' ? S.selA : S.selB;
@@ -264,9 +307,11 @@ async function startDockerTransfer(dir) {
     if (sel.size === 0) { toast(t('toast.selectDockerImages'), 'warn'); return; }
 
     const images = [...sel];
+    const run = beginTransferRun(dir);
     S.busy = true;
     S.tDir = dir;
     S.tPort = Math.floor(Math.random() * (PORT_MAX - PORT_MIN)) + PORT_MIN;
+    run.port = S.tPort;
     S.senderExitCode = null;
     S.recvExitCode = null;
     updateTransferBtns();
@@ -274,8 +319,8 @@ async function startDockerTransfer(dir) {
     try {
         // Step 1: Estimate uncompressed size via docker inspect
         setStatus(t('status.calcSize'));
-        const inspectRes = await execSSH(srcSrv,
-            `docker inspect --format='{{.Size}}' ${images.map(bq).join(' ')} 2>/dev/null | awk '{s+=$1}END{print s+0}'`);
+        const inspectRes = await transferStep(run, () => execSSH(srcSrv,
+            `docker inspect --format='{{.Size}}' ${images.map(bq).join(' ')} 2>/dev/null | awk '{s+=$1}END{print s+0}'`));
         S.tBytes = parseInt((inspectRes.stdOut || '0').trim()) || 0;
 
         // Step 1.5: Check available disk space on both sides
@@ -283,10 +328,10 @@ async function startDockerTransfer(dir) {
         // Receiver needs ~2x image size (docker load tmp + final image storage)
         if (S.tBytes > 0) {
             setStatus(t('status.checkSpace'));
-            const [srcAvail, dstAvail] = await Promise.all([
+            const [srcAvail, dstAvail] = await transferStep(run, () => Promise.all([
                 checkDockerDiskSpace(srcSrv),
                 checkDockerDiskSpace(dstSrv)
-            ]);
+            ]));
             if (srcAvail > 0 && srcAvail < S.tBytes) {
                 resetTransfer(); hideProgress(); setStatus(t('status.ready'));
                 toast(t('toast.dockerNoSpaceSrc', { alias: srcSrv.alias, need: fmtBytes(S.tBytes), avail: fmtBytes(srcAvail) }), 'err');
@@ -301,7 +346,7 @@ async function startDockerTransfer(dir) {
 
         // Step 2: Check pv availability
         setStatus(t('status.checkEnv'));
-        const hasPv = await checkPv(srcSrv);
+        const hasPv = await transferStep(run, () => checkPv(srcSrv));
         if (!hasPv) toast(t('toast.noPv'), 'warn');
 
         showProgress(dir, S.tBytes, hasPv);
@@ -309,16 +354,16 @@ async function startDockerTransfer(dir) {
 
         // Kill any stale nc listener on receiver
         try { await execSSH(dstSrv, `pkill -f "nc -l.*${S.tPort}" 2>/dev/null || true`); } catch (_) { }
-        await sleep(400);
+        await transferStep(run, () => sleep(400));
 
         // Step 3: Start receiver — nc | docker load  (images go into /var/lib/docker automatically)
         // docker commands never use sudo; user must be in docker group
         setStatus(t('status.recvWait', { alias: dstSrv.alias }));
         const recvCmd = buildSSH(dstSrv, `nc -l ${S.tPort} | docker load`);
-        const recvProc = await Neutralino.os.spawnProcess(recvCmd);
+        const recvProc = await spawnTransferProcess(run, recvCmd);
         S.recvPid = recvProc.id;
 
-        await sleep(1200);
+        await transferStep(run, () => sleep(1200));
 
         // Step 4: Start sender — docker save | [pv] | nc
         setStatus(t('status.transferring', { src: srcSrv.alias, dst: dstSrv.alias }));
@@ -331,10 +376,10 @@ async function startDockerTransfer(dir) {
             startIndeterminateProgress();
         }
         const sendCmd = buildSSH(srcSrv, sendPipeline);
-        const sendProc = await Neutralino.os.spawnProcess(sendCmd);
+        const sendProc = await spawnTransferProcess(run, sendCmd);
         S.senderPid = sendProc.id;
 
     } catch (e) {
-        onTransferError(String(e.message || e));
+        if (!run.cancelled && S.transferRun === run) await onTransferError(String(e.message || e));
     }
 }

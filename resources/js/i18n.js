@@ -449,7 +449,7 @@ function t(key, params) {
 function getLang() { return _currentLang; }
 
 /**
- * Switch language, apply to DOM, persist to Neutralino.storage.
+ * Switch language, apply to DOM, persist to Desktop.storage.
  */
 async function setLang(lang) {
   if (!_LANGS[lang]) return;
@@ -457,7 +457,7 @@ async function setLang(lang) {
   document.documentElement.lang = lang;
   applyI18n();
   try {
-    await Neutralino.storage.setData('lang', lang);
+    await Desktop.storage.setData('lang', lang);
   } catch (_) { }
 }
 
@@ -467,7 +467,7 @@ async function setLang(lang) {
 async function initI18n() {
   let hasSaved = false;
   try {
-    const saved = await Neutralino.storage.getData('lang');
+    const saved = await Desktop.storage.getData('lang');
     if (saved && _LANGS[saved]) { _currentLang = saved; hasSaved = true; }
   } catch (_) {}
 
