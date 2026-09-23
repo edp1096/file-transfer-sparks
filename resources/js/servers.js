@@ -286,6 +286,9 @@ function populateSelects() {
 }
 
 async function onSelectServer(side) {
+    const connection = ++S['connectionToken' + side];
+    ++S['panelToken' + side];
+    const current = () => connection === S['connectionToken' + side] && S['srv' + side] === srv;
     const id = parseInt(document.getElementById('select' + side).value);
     const srv = S.servers.find(s => s.id === id) || null;
 
@@ -307,7 +310,7 @@ async function onSelectServer(side) {
     dockerBtn.classList.remove('docker-active');
     dockerBtn.title = t('panel.dockerMode');
     pathEl.disabled = false;
-    updateTransferBtns();
+    updateSelInfo();
 
     if (!srv) {
         dot.className = 'conn-dot';
@@ -316,26 +319,32 @@ async function onSelectServer(side) {
         listEl.innerHTML = '<div class="panel-state"><div class="state-icon">🖥</div><div class="state-msg">' + escHtml(t('panel.selectServer')) + '</div></div>';
         const diskEl = document.getElementById('diskInfo' + side);
         if (diskEl) diskEl.textContent = '';
+        ListNavigation.get('list' + side)?.finishLoad();
         setStatus(t('status.ready'));
         return;
     }
 
+    ListNavigation.get('list' + side)?.beginLoad();
     dot.className = 'conn-dot loading';
     setStatus(t('status.connecting', { alias: srv.alias }));
     listEl.innerHTML = '<div class="panel-state"><div class="state-icon">⟳</div><div class="state-msg">' + escHtml(t('panel.connecting')) + '</div></div>';
 
     try {
         const ping = await execSSH(srv, 'echo __CONN_OK__');
+        if (!current()) return;
         if (!(ping.stdOut || '').includes('__CONN_OK__')) throw new Error((ping.stdErr || t('misc.noResponse')).trim().slice(0, 120));
         const home = await getHomeDir(srv);
+        if (!current()) return;
         if (side === 'A') S.pathA = home; else S.pathB = home;
         pathEl.value = home;
         upBtn.disabled = refBtn.disabled = false;
         dot.className = 'conn-dot ok';
         setStatus(t('status.connected', { alias: srv.alias }));
         await loadPanel(side);
+        if (!current()) return;
         loadPanelDiskInfo(side);   // fire-and-forget
     } catch (e) {
+        if (!current()) return;
         const alias = srv.alias;
         setStatus(t('status.connFail', { alias }));
         toast(t('toast.connFail', { alias }), 'err');
@@ -355,7 +364,8 @@ async function onSelectServer(side) {
         listEl.innerHTML = '<div class="panel-state"><div class="state-icon">🖥</div><div class="state-msg">' + escHtml(t('panel.selectServer')) + '</div></div>';
         const diskEl = document.getElementById('diskInfo' + side);
         if (diskEl) diskEl.textContent = '';
-        updateTransferBtns();
+        ListNavigation.get('list' + side)?.finishLoad();
+        updateSelInfo();
     }
 }
 

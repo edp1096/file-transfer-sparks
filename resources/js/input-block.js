@@ -7,7 +7,7 @@ document.addEventListener('wheel', e => {
 
 // F5 / Ctrl+R 새로고침 차단
 document.addEventListener('keydown', e => {
-    if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) e.preventDefault();
+    if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.code === 'KeyR' || e.key.toLowerCase() === 'r'))) e.preventDefault();
 });
 
 // 우클릭 컨텍스트 메뉴 차단

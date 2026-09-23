@@ -11,9 +11,25 @@ const BK = {
     busy: false,
     ssdStates: [],      // [{device, mount, alias, mounted}] per SSD
     activeSsdIdx: -1,   // index into ssdStates for backup/restore target
-    lastClickItems: -1, // shift-click anchor for server list
-    lastClickBkup: -1,  // shift-click anchor for backup list
+    connectionToken: 0,
+    listToken: 0,
+    backupListToken: 0,
 };
+
+function attachBackupHandlers() {
+    for (const [id, field, label] of [['bkList', 'items', 'backup.sourcePanel'], ['bkBkupList', 'bkupItems', 'backup.destPanel']]) {
+        ListNavigation.attach(id, {
+            context: () => JSON.stringify([BK.srv?.id, BK.srv?.sshHost, BK.subTab, id === 'bkBkupList' ? bkActiveSsdMount() : null]),
+            selection: () => new Set(BK[field].filter(item => item.selected).map(item => item.name)),
+            setSelection: selection => BK[field].forEach(item => { item.selected = selection.has(item.name); }),
+            locked: () => BK.busy,
+            changed: bkUpdateActionBtns,
+            label: () => t(label),
+            left: 'bkList', right: 'bkBkupList',
+            remove: () => id === 'bkList' ? bkRunDeleteServer() : bkRunDeleteBkup(),
+        });
+    }
+}
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -94,6 +110,8 @@ function bkUpdateState() {
 async function bkCheckAllMounts() {
     if (!BK.srv || !BK.ssdStates.length) return;
 
+    const srv = BK.srv, states = BK.ssdStates;
+    const current = () => BK.srv === srv && BK.ssdStates === states;
     // Set all chips to checking
     BK.ssdStates.forEach((_, idx) => bkSetSsdChipChecking(idx));
 
@@ -103,6 +121,7 @@ async function bkCheckAllMounts() {
             `mountpoint -q ${bq(s.mount)} 2>/dev/null && echo "__SSD_${i}_YES__" || echo "__SSD_${i}_NO__"`
         ).join(' ; ');
         const res = await execSSH(BK.srv, checks);
+        if (!current()) return;
         const out = res.stdOut || '';
 
         BK.ssdStates.forEach((s, i) => {
@@ -110,6 +129,7 @@ async function bkCheckAllMounts() {
             bkSetSsdChipMountUI(i, s.mounted);
         });
     } catch (_) {
+        if (!current()) return;
         BK.ssdStates.forEach((s, i) => {
             s.mounted = false;
             bkSetSsdChipMountUI(i, false);
@@ -383,32 +403,33 @@ async function bkFetchDiskInfo() {
 // ── Item listing ────────────────────────────────────────────
 
 async function bkLoadList() {
-    if (!BK.srv) return;
+    const srv = BK.srv, tab = BK.subTab, token = ++BK.listToken;
+    const current = () => BK.srv === srv && BK.subTab === tab && BK.listToken === token;
+    const nav = ListNavigation.get('bkList');
+    nav?.beginLoad(); BK.items = []; bkUpdateActionBtns();
+    if (!srv) { bkRenderList(); nav?.finishLoad(); return; }
     document.getElementById('btnBkLoad').disabled = true;
     bkRenderPlaceholder(t('backup.loading'));
-    BK.items = [];
-    BK.lastClickItems = -1;
-
     try {
-        if (BK.subTab === 'docker') {
-            BK.items = await bkListDocker();
-        } else if (BK.subTab === 'hf') {
-            BK.items = await bkListHF();
-        } else {
-            BK.items = await bkListGGUF();
-        }
+        const items = await (tab === 'docker' ? bkListDocker(srv) : tab === 'hf' ? bkListHF(srv) : bkListGGUF(srv));
+        if (!current()) return;
+        BK.items = items; bkRenderList();
     } catch (e) {
+        if (!current()) return;
         bkLog('Load error: ' + (e.message || String(e)), 'err');
-        bkRenderPlaceholder('\u26a0 ' + (e.message || String(e)));
+        bkRenderPlaceholder('⚠ ' + (e.message || String(e)));
     } finally {
-        document.getElementById('btnBkLoad').disabled = false;
-        bkRenderList();
+        if (current()) {
+            nav?.finishLoad();
+            document.getElementById('btnBkLoad').disabled = BK.busy;
+            bkUpdateActionBtns();
+        }
     }
-    bkFetchServerDiskInfo();
+    if (current()) bkFetchServerDiskInfo();
 }
 
-async function bkListDocker() {
-    const res = await execSSH(BK.srv,
+async function bkListDocker(srv = BK.srv) {
+    const res = await execSSH(srv,
         `docker images --format "{{.Repository}}:{{.Tag}}\\t{{.Size}}" 2>&1`);
     const out = (res.stdOut || '').trim();
     if (!out) return [];
@@ -418,13 +439,13 @@ async function bkListDocker() {
     });
 }
 
-async function bkListHF() {
-    if (!BK.srv.hfHubPath) throw new Error(t('backup.noHfPath'));
-    await execSSH(BK.srv, BK.srv.useSudo
-        ? wrapSudo(BK.srv, `mkdir -p ${bq(BK.srv.hfHubPath)}`)
-        : `mkdir -p ${bq(BK.srv.hfHubPath)}`);
-    const res = await execSSH(BK.srv,
-        `du -sh ${bq(BK.srv.hfHubPath)}/* 2>/dev/null | awk '{split($2,a,"/"); print a[length(a)] "\\t" $1}' || true`);
+async function bkListHF(srv = BK.srv) {
+    if (!srv.hfHubPath) throw new Error(t('backup.noHfPath'));
+    await execSSH(srv, srv.useSudo
+        ? wrapSudo(srv, `mkdir -p ${bq(srv.hfHubPath)}`)
+        : `mkdir -p ${bq(srv.hfHubPath)}`);
+    const res = await execSSH(srv,
+        `du -sh ${bq(srv.hfHubPath)}/* 2>/dev/null | awk '{split($2,a,"/"); print a[length(a)] "\\t" $1}' || true`);
     const out = (res.stdOut || '').trim();
     if (!out) return [];
     return out.split('\n').filter(Boolean).map(line => {
@@ -433,13 +454,13 @@ async function bkListHF() {
     });
 }
 
-async function bkListGGUF() {
-    if (!BK.srv.ggufPath) throw new Error(t('backup.noGgufPath'));
-    await execSSH(BK.srv, BK.srv.useSudo
-        ? wrapSudo(BK.srv, `mkdir -p ${bq(BK.srv.ggufPath)}`)
-        : `mkdir -p ${bq(BK.srv.ggufPath)}`);
-    const res = await execSSH(BK.srv,
-        `du -sh ${bq(BK.srv.ggufPath)}/*.gguf 2>/dev/null | awk '{split($2,a,"/"); print a[length(a)] "\\t" $1}' || true`);
+async function bkListGGUF(srv = BK.srv) {
+    if (!srv.ggufPath) throw new Error(t('backup.noGgufPath'));
+    await execSSH(srv, srv.useSudo
+        ? wrapSudo(srv, `mkdir -p ${bq(srv.ggufPath)}`)
+        : `mkdir -p ${bq(srv.ggufPath)}`);
+    const res = await execSSH(srv,
+        `du -sh ${bq(srv.ggufPath)}/*.gguf 2>/dev/null | awk '{split($2,a,"/"); print a[length(a)] "\\t" $1}' || true`);
     const out = (res.stdOut || '').trim();
     if (!out) return [];
     return out.split('\n').filter(Boolean).map(line => {
@@ -457,42 +478,21 @@ function bkRenderList() {
         return;
     }
     el.innerHTML = BK.items.map((item, idx) =>
-        `<div class="bk-row${item.selected ? ' selected' : ''}" data-idx="${idx}">
+        `<div class="bk-row${item.selected ? ' selected' : ''}" data-idx="${idx}" data-name="${escHtml(item.name)}">
           <input type="checkbox"${item.selected ? ' checked' : ''}>
           <span class="bk-row-name" title="${escHtml(item.name)}">${escHtml(item.name)}</span>
           ${item.meta ? `<span class="bk-row-meta">${escHtml(item.meta)}</span>` : ''}
         </div>`
     ).join('');
 
-    el.querySelectorAll('.bk-row').forEach(row => {
-        row.addEventListener('click', e => {
-            const idx = parseInt(row.dataset.idx);
-            const chk = row.querySelector('input[type="checkbox"]');
-            if (e.shiftKey && BK.lastClickItems >= 0) {
-                const lo = Math.min(idx, BK.lastClickItems);
-                const hi = Math.max(idx, BK.lastClickItems);
-                for (let i = lo; i <= hi; i++) BK.items[i].selected = true;
-                bkRenderList();
-            } else {
-                BK.lastClickItems = idx;
-                if (e.target === chk) {
-                    BK.items[idx].selected = chk.checked;
-                } else {
-                    BK.items[idx].selected = !BK.items[idx].selected;
-                    chk.checked = BK.items[idx].selected;
-                }
-                if (BK.items[idx].selected) row.classList.add('selected');
-                else row.classList.remove('selected');
-            }
-            bkUpdateActionBtns();
-        });
-    });
+    ListNavigation.get('bkList')?.sync();
     bkUpdateActionBtns();
 }
 
 function bkRenderPlaceholder(msg) {
     const el = document.getElementById('bkList');
     if (el) el.innerHTML = `<div class="panel-state"><div class="state-msg" style="color:var(--text3)">${escHtml(msg)}</div></div>`;
+    ListNavigation.get('bkList')?.sync();
 }
 
 function bkUpdateActionBtns() {
@@ -506,12 +506,20 @@ function bkUpdateActionBtns() {
     if (restoreBtn) restoreBtn.disabled = !hasBkupSel || BK.busy;
     if (deleteBtn) deleteBtn.disabled = !hasSel || BK.busy;
     if (deleteBkupBtn) deleteBkupBtn.disabled = !hasBkupSel || BK.busy;
+    if (ListNavigation.visible(document.getElementById('backupPanel'))) {
+        document.getElementById('selInfo').textContent = [[t('backup.sourcePanel'), BK.items], [t('backup.destPanel'), BK.bkupItems]]
+            .filter(([, items]) => items.some(item => item.selected))
+            .map(([side, items]) => t('sel.selected', { side, count: items.filter(item => item.selected).length })).join('   ');
+    }
 }
 
 // ── Backup / Restore execution ──────────────────────────────
 
 function bkSetBusy(busy) {
     BK.busy = busy;
+    document.getElementById('selectBk').disabled = busy;
+    document.getElementById('btnEditBk').disabled = busy || !BK.srv;
+    document.querySelectorAll('.bk-subtab').forEach(button => { button.disabled = busy; });
     document.getElementById('btnBkLoad').disabled = busy;
     document.getElementById('btnBkLoadBkup').disabled = busy;
     document.getElementById('btnBkCancel').style.display = busy ? '' : 'none';
@@ -890,38 +898,33 @@ async function bkRestoreGGUF(sel) {
 // ── SSD backup list loaders (for Restore panel) ──────────────
 
 async function bkLoadBackupList() {
-    if (!BK.srv) return;
-    const mount = bkActiveSsdMount();
-    if (!mount) { toast(t('backup.ssdNotMounted'), 'warn'); return; }
-
+    const srv = BK.srv, tab = BK.subTab, mount = bkActiveSsdMount(), token = ++BK.backupListToken;
+    const current = () => BK.srv === srv && BK.subTab === tab && bkActiveSsdMount() === mount && BK.backupListToken === token;
+    const nav = ListNavigation.get('bkBkupList');
+    nav?.beginLoad(); BK.bkupItems = []; bkUpdateActionBtns();
+    if (!srv || !mount) { bkRenderBkupList(); nav?.finishLoad(); return; }
     document.getElementById('btnBkLoadBkup').disabled = true;
     bkRenderBkupPlaceholder(t('backup.loading'));
-    BK.bkupItems = [];
-    BK.lastClickBkup = -1;
-
     try {
-        if (BK.subTab === 'docker') {
-            BK.bkupItems = await bkListDockerBackups();
-        } else if (BK.subTab === 'hf') {
-            BK.bkupItems = await bkListHFBackups();
-        } else {
-            BK.bkupItems = await bkListGGUFBackups();
-        }
+        const items = await (tab === 'docker' ? bkListDockerBackups(srv, mount) : tab === 'hf' ? bkListHFBackups(srv, mount) : bkListGGUFBackups(srv, mount));
+        if (!current()) return;
+        BK.bkupItems = items; bkRenderBkupList();
     } catch (e) {
+        if (!current()) return;
         bkLog('Load backups error: ' + (e.message || String(e)), 'err');
-        bkRenderBkupPlaceholder('\u26a0 ' + (e.message || String(e)));
-        document.getElementById('btnBkLoadBkup').disabled = false;
-        return;
+        bkRenderBkupPlaceholder('⚠ ' + (e.message || String(e)));
+    } finally {
+        if (current()) {
+            nav?.finishLoad();
+            document.getElementById('btnBkLoadBkup').disabled = BK.busy;
+            bkUpdateActionBtns();
+        }
     }
-
-    document.getElementById('btnBkLoadBkup').disabled = false;
-    bkRenderBkupList();
 }
 
-async function bkListDockerBackups() {
-    const mount = bkActiveSsdMount();
+async function bkListDockerBackups(srv = BK.srv, mount = bkActiveSsdMount()) {
     const dir = mount + '/docker_backup';
-    const res = await execSSH(BK.srv,
+    const res = await execSSH(srv,
         `du -sh ${bq(dir)}/*.tar 2>/dev/null | awk '{split($2,a,"/"); print a[length(a)] "\\t" $1}' || true`);
     const out = (res.stdOut || '').trim();
     if (!out) return [];
@@ -931,10 +934,9 @@ async function bkListDockerBackups() {
     });
 }
 
-async function bkListHFBackups() {
-    const mount = bkActiveSsdMount();
+async function bkListHFBackups(srv = BK.srv, mount = bkActiveSsdMount()) {
     const dir = mount + '/huggingface_backup';
-    const res = await execSSH(BK.srv,
+    const res = await execSSH(srv,
         `du -sh ${bq(dir)}/*.tar 2>/dev/null | awk '{split($2,a,"/"); gsub(/\\.tar$/,"",a[length(a)]); print a[length(a)] "\\t" $1}' || true`);
     const out = (res.stdOut || '').trim();
     if (!out) return [];
@@ -944,10 +946,9 @@ async function bkListHFBackups() {
     });
 }
 
-async function bkListGGUFBackups() {
-    const mount = bkActiveSsdMount();
+async function bkListGGUFBackups(srv = BK.srv, mount = bkActiveSsdMount()) {
     const dir = mount + '/gguf_backup';
-    const res = await execSSH(BK.srv,
+    const res = await execSSH(srv,
         `du -sh ${bq(dir)}/*.gguf 2>/dev/null | awk '{split($2,a,"/"); print a[length(a)] "\\t" $1}' || true`);
     const out = (res.stdOut || '').trim();
     if (!out) return [];
@@ -966,42 +967,21 @@ function bkRenderBkupList() {
         return;
     }
     el.innerHTML = BK.bkupItems.map((item, idx) =>
-        `<div class="bk-row${item.selected ? ' selected' : ''}" data-bkup-idx="${idx}">
+        `<div class="bk-row${item.selected ? ' selected' : ''}" data-bkup-idx="${idx}" data-name="${escHtml(item.name)}">
           <input type="checkbox"${item.selected ? ' checked' : ''}>
           <span class="bk-row-name" title="${escHtml(item.name)}">${escHtml(item.name)}</span>
           ${item.meta ? `<span class="bk-row-meta">${escHtml(item.meta)}</span>` : ''}
         </div>`
     ).join('');
 
-    el.querySelectorAll('.bk-row').forEach(row => {
-        row.addEventListener('click', e => {
-            const idx = parseInt(row.dataset.bkupIdx);
-            const chk = row.querySelector('input[type="checkbox"]');
-            if (e.shiftKey && BK.lastClickBkup >= 0) {
-                const lo = Math.min(idx, BK.lastClickBkup);
-                const hi = Math.max(idx, BK.lastClickBkup);
-                for (let i = lo; i <= hi; i++) BK.bkupItems[i].selected = true;
-                bkRenderBkupList();
-            } else {
-                BK.lastClickBkup = idx;
-                if (e.target === chk) {
-                    BK.bkupItems[idx].selected = chk.checked;
-                } else {
-                    BK.bkupItems[idx].selected = !BK.bkupItems[idx].selected;
-                    chk.checked = BK.bkupItems[idx].selected;
-                }
-                if (BK.bkupItems[idx].selected) row.classList.add('selected');
-                else row.classList.remove('selected');
-            }
-            bkUpdateActionBtns();
-        });
-    });
+    ListNavigation.get('bkBkupList')?.sync();
     bkUpdateActionBtns();
 }
 
 function bkRenderBkupPlaceholder(msg) {
     const el = document.getElementById('bkBkupList');
     if (el) el.innerHTML = `<div class="panel-state"><div class="state-msg" style="color:var(--text3)">${escHtml(msg)}</div></div>`;
+    ListNavigation.get('bkBkupList')?.sync();
 }
 
 // ── Log panel toggle ─────────────────────────────────────────
@@ -1037,19 +1017,27 @@ Desktop.events.on('ready', async () => {
 
 // ── Sub-tab switch ───────────────────────────────────────────
 function bkSwitchSubTab(tab) {
-    if (BK.subTab === tab) return;
+    if (BK.subTab === tab || BK.busy) return;
+    ++BK.listToken; ++BK.backupListToken;
     BK.subTab = tab;
+    ListNavigation.get('bkList')?.beginLoad();
+    ListNavigation.get('bkBkupList')?.beginLoad();
     BK.items = [];
     BK.bkupItems = [];
     ['docker', 'hf', 'gguf'].forEach(name => {
-        const btn = document.getElementById('bkTab' + name.charAt(0).toUpperCase() + name.slice(1));
+        const btn = document.getElementById({ docker: 'bkTabDocker', hf: 'bkTabHF', gguf: 'bkTabGGUF' }[name]);
         if (btn) btn.classList.toggle('active', name === tab);
     });
     bkRenderList();
     bkRenderBkupList();
+    syncKeyboardTabs();
     // Auto-load on tab switch
     if (BK.srv) {
         bkLoadList();
         if (bkActiveSsdMount()) bkLoadBackupList();
+        else ListNavigation.get('bkBkupList')?.finishLoad();
+    } else {
+        ListNavigation.get('bkList')?.finishLoad();
+        ListNavigation.get('bkBkupList')?.finishLoad();
     }
 }

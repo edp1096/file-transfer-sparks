@@ -1,5 +1,6 @@
 // Node 22+, Chrome/Chromium/Edge. Runs against the actual Go server in a temporary directory.
 import assert from 'node:assert/strict';
+import { runKeyboardChecks } from './keyboard-checks.mjs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -144,6 +145,7 @@ try {
             getTransferSize=originalSize;Desktop.os.spawnProcess=originalSpawn;buildSSH=window.originalBuildSSH;return spawns;
         })()`), 0);
     }
+    await runKeyboardChecks({ call, evaluate, waitFor });
     // Settings persist through page reload (new connection).
     await reload();
     await waitFor(() => evaluate(`typeof S!=='undefined' && S.servers.length===2 && !!document.getElementById('btnAddServer').onclick`), 'reload');

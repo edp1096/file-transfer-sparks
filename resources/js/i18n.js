@@ -7,6 +7,26 @@
 
 const _LANGS = {
   en: {
+    "keyboard.views": "Application tabs",
+    "keyboard.models": "Backup item types",
+    "keyboard.help": "Keyboard shortcuts",
+    "keyboard.files": "Panel {side}: files and Docker images",
+    "keyboard.hint": "Arrow keys move the cursor. Space toggles selection. Shift selects a range. Escape clears selection.",
+    "keyboard.move": "Move and select one item",
+    "keyboard.cursor": "Move cursor, keeping selection",
+    "keyboard.toggle": "Toggle the focused item",
+    "keyboard.range": "Select a range; reverse to shrink",
+    "keyboard.addRange": "Add a range to existing selection",
+    "keyboard.all": "Select all in the focused list",
+    "keyboard.clear": "Clear selection, keep cursor",
+    "keyboard.panes": "Move between lists, keeping selection",
+    "keyboard.tab": "Move between controls and lists",
+    "keyboard.switchTab": "Switch File Transfer / Backup tabs",
+    "keyboard.folders": "Open folder / Go to parent (files)",
+    "keyboard.refresh": "Refresh both lists in the current tab",
+    "keyboard.delete": "Delete selected items after confirmation",
+    "keyboard.actions": "Click selects one item; Ctrl+click or a checkbox toggles it. Use the transfer, backup or restore buttons to run those operations. On a tab, Left/Right switches tabs and Down enters the list.",
+
     // Header
     "header.transferAtoB": "Transfer A \u2192 B",
     "header.transferBtoA": "Transfer B \u2192 A",
@@ -217,6 +237,26 @@ const _LANGS = {
   },
 
   ko: {
+    "keyboard.views": "앱 탭",
+    "keyboard.models": "백업 항목 종류",
+    "keyboard.help": "키보드 단축키",
+    "keyboard.files": "패널 {side}: 파일 및 Docker 이미지",
+    "keyboard.hint": "방향키로 커서를 이동합니다. Space는 선택 전환, Shift는 범위 선택, Esc는 전체 해제입니다.",
+    "keyboard.move": "이동하며 한 항목 선택",
+    "keyboard.cursor": "선택 유지하며 커서만 이동",
+    "keyboard.toggle": "커서 항목 선택·해제",
+    "keyboard.range": "범위 선택 · 반대로 이동하면 축소",
+    "keyboard.addRange": "기존 선택에 범위 추가",
+    "keyboard.all": "현재 목록 전체 선택",
+    "keyboard.clear": "커서 유지하며 전체 선택 해제",
+    "keyboard.panes": "선택 유지하며 좌우 목록 이동",
+    "keyboard.tab": "버튼·입력란·목록 사이 이동",
+    "keyboard.switchTab": "파일 전송 / 백업 탭 전환",
+    "keyboard.folders": "폴더 열기 / 상위 폴더 (파일 목록)",
+    "keyboard.refresh": "현재 탭의 양쪽 목록 새로고침",
+    "keyboard.delete": "확인 후 선택 항목 삭제",
+    "keyboard.actions": "클릭은 한 항목 선택, Ctrl+클릭이나 체크박스는 선택 전환입니다. 전송·백업·복원은 해당 버튼으로 실행합니다. 탭에서 좌우 방향키로 전환하고 아래 방향키로 목록에 진입합니다.",
+
     // Header
     "header.transferAtoB": "A \u2192 B \uc804\uc1a1",
     "header.transferBtoA": "B \u2192 A \uc804\uc1a1",

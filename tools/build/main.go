@@ -30,7 +30,7 @@ func run() error {
 	flag.Parse()
 	if *clean {
 		// Settings live beside binaries. Remove generated files, preserving user data.
-		paths := []string{"bin/file-transfer-sparks", "bin/file-transfer-sparks.exe", "bin/ssh-client", "bin/ssh-client.exe", ".tmp/desktop-ui.png"}
+		paths := []string{"bin/file-transfer-sparks", "bin/file-transfer-sparks.exe", "bin/ssh-client", "bin/ssh-client.exe", ".tmp/desktop-ui.png", ".tmp/keyboard-ui.png"}
 		for _, target := range []string{"win_x64", "linux_x64", "linux_arm64"} {
 			dir := "dist/file-transfer-sparks-" + target
 			paths = append(paths, dir+".zip", dir+".tar.gz")

@@ -4,7 +4,7 @@
 // UI HELPERS
 // ============================================================
 function updateTransferBtns() {
-    const bothSrvs = S.srvA && S.srvB && !S.busy;
+    const bothSrvs = S.srvA && S.srvB && !S.busy && !S.deleting;
     // Files mode needs a destination path; Docker mode does not (docker load handles storage)
     const canAtoB = bothSrvs && S.selA.size > 0 &&
         (S.panelModeA === 'docker' || (S.pathA && S.pathB));
@@ -12,19 +12,31 @@ function updateTransferBtns() {
         (S.panelModeB === 'docker' || (S.pathA && S.pathB));
     document.getElementById('btnAtoB').disabled = !canAtoB;
     document.getElementById('btnBtoA').disabled = !canBtoA;
+    for (const side of ['A', 'B']) {
+        const locked = S.busy || S.deleting;
+        document.getElementById('select' + side).disabled = locked;
+        document.getElementById('btnEdit' + side).disabled = locked || !S['srv' + side];
+        document.getElementById('btnDocker' + side).disabled = locked || !S['srv' + side];
+        const all = document.getElementById('chkAll' + side);
+        const count = document.getElementById('list' + side).querySelectorAll('[data-name]').length;
+        const selected = S['sel' + side].size;
+        all.checked = count > 0 && selected === count;
+        all.indeterminate = selected > 0 && selected < count;
+        all.disabled = S.busy || S.deleting || !!ListNavigation.get('list' + side)?.state.loading || !count;
+    }
 }
 
 function updateSelInfo() {
     const parts = [];
     if (S.selA.size > 0) parts.push(t('sel.selected', { side: 'A', count: S.selA.size }));
     if (S.selB.size > 0) parts.push(t('sel.selected', { side: 'B', count: S.selB.size }));
-    document.getElementById('selInfo').textContent = parts.join('   ');
+    if (ListNavigation.visible(document.getElementById('main'))) document.getElementById('selInfo').textContent = parts.join('   ');
     updateTransferBtns();
     // Enable delete buttons only when something is selected and not busy
     const delA = document.getElementById('btnDeleteA');
     const delB = document.getElementById('btnDeleteB');
-    if (delA) delA.disabled = S.busy || S.selA.size === 0 || !S.srvA;
-    if (delB) delB.disabled = S.busy || S.selB.size === 0 || !S.srvB;
+    if (delA) delA.disabled = S.busy || S.deleting || S.selA.size === 0 || !S.srvA;
+    if (delB) delB.disabled = S.busy || S.deleting || S.selB.size === 0 || !S.srvB;
 }
 
 function setStatus(msg) { document.getElementById('statusText').textContent = msg; }

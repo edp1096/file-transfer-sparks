@@ -15,11 +15,12 @@
   <header id="header">
     <div class="header-top">
       <div class="tab-bar">
-        <button class="tab-btn active" id="tabFileTransfer" data-i18n="tab.fileTransfer">File Transfer</button>
-        <button class="tab-btn" id="tabBackup" data-i18n="tab.backup">Backup &amp; Restore</button>
+        <button class="tab-btn active" id="tabFileTransfer" aria-controls="main" data-i18n="tab.fileTransfer">File Transfer</button>
+        <button class="tab-btn" id="tabBackup" aria-controls="backupPanel" data-i18n="tab.backup">Backup &amp; Restore</button>
       </div>
       <div class="flex-spacer"></div>
       <div class="header-actions">
+        <button class="btn-icon" id="btnKeyboardHelp" data-i18n-title="keyboard.help" title="Keyboard shortcuts">⌨</button>
         <button class="btn-icon" id="btnTheme" title="Toggle light/dark theme" style="font-size:13px;border:none;background:none">☀</button>
         <select class="lang-select" id="langSelect">
           <option value="en">EN</option>
@@ -68,7 +69,7 @@
     </div>
   </div>
 
-  <main id="main">
+  <main id="main" role="tabpanel" aria-labelledby="tabFileTransfer">
     <div class="file-panel">
       <div class="panel-toolbar">
         <button class="btn-icon" id="btnUpA" data-i18n-title="panel.parentDir" title="Parent directory" disabled>↑</button>
@@ -116,7 +117,7 @@
   </main>
 
   <!-- BACKUP / RESTORE PANEL -->
-  <div id="backupPanel" style="display:none" class="backup-panel">
+  <div id="backupPanel" role="tabpanel" aria-labelledby="tabBackup" style="display:none" class="backup-panel">
     <!-- State: no server selected -->
     <div id="bkStateNoServer" class="panel-state">
       <div class="state-icon">🖥</div>
@@ -209,6 +210,30 @@
       <span class="zoom-label" id="zoomLabel">100%</span>
       <button class="zoom-btn" id="btnZoomIn" title="Zoom in">＋</button>
       <button class="zoom-btn" id="btnZoomReset" title="Reset zoom">↺</button>
+    </div>
+  </div>
+
+  <span class="sr-only" id="keyboardListHint" data-i18n="keyboard.hint"></span>
+  <div class="modal-overlay" id="keyboardHelpModal" aria-labelledby="keyboardHelpTitle">
+    <div class="modal-box keyboard-help">
+      <div class="modal-title" id="keyboardHelpTitle" data-i18n="keyboard.help">Keyboard shortcuts</div>
+      <table class="shortcut-table"><tbody>
+        <tr><th scope="row">↑ ↓ / Home End / PgUp PgDn</th><td data-i18n="keyboard.move"></td></tr>
+        <tr><th scope="row">Ctrl + ↑ ↓</th><td data-i18n="keyboard.cursor"></td></tr>
+        <tr><th scope="row">Space / Ctrl + Space</th><td data-i18n="keyboard.toggle"></td></tr>
+        <tr><th scope="row">Shift + ↑ ↓ / Shift + click</th><td data-i18n="keyboard.range"></td></tr>
+        <tr><th scope="row">Ctrl + Shift + ↑ ↓</th><td data-i18n="keyboard.addRange"></td></tr>
+        <tr><th scope="row">Ctrl + A</th><td data-i18n="keyboard.all"></td></tr>
+        <tr><th scope="row">Esc / Ctrl + Shift + A</th><td data-i18n="keyboard.clear"></td></tr>
+        <tr><th scope="row">← →</th><td data-i18n="keyboard.panes"></td></tr>
+        <tr><th scope="row">Tab / Shift + Tab</th><td data-i18n="keyboard.tab"></td></tr>
+        <tr><th scope="row">Ctrl + Tab</th><td data-i18n="keyboard.switchTab"></td></tr>
+        <tr><th scope="row">Enter / Backspace</th><td data-i18n="keyboard.folders"></td></tr>
+        <tr><th scope="row">F5 / Ctrl + R</th><td data-i18n="keyboard.refresh"></td></tr>
+        <tr><th scope="row">Delete</th><td data-i18n="keyboard.delete"></td></tr>
+      </tbody></table>
+      <p class="shortcut-note" data-i18n="keyboard.actions"></p>
+      <button class="btn" id="btnKeyboardHelpClose" data-i18n="about.close">Close</button>
     </div>
   </div>
 
@@ -364,6 +389,8 @@
   <script src="/js/input-block.js?v=14"></script>
   <script src="/js/i18n.js?v=14"></script>
   <script src="/js/crypto.js?v=14"></script>
+  <script src="/js/list-navigation.js?v=15"></script>
+  <script src="/js/keyboard.js?v=15"></script>
   <script src="/js/ui.js?v=14"></script>
   <script src="/js/ssh.js?v=14"></script>
   <script src="/js/transfer.js?v=14"></script>

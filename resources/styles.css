@@ -208,3 +208,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .bk-ssd-chip .btn-sm{padding:2px 6px;font-size:10px;height:18px}
 .bk-ssd-select{background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer;outline:none;margin-left:4px}
 .bk-ssd-select:focus{border-color:var(--accent)}
+/* Keyboard focus is an outline; checked selection keeps its existing background. */
+[role="listbox"]:focus{outline:1px solid var(--accent);outline-offset:-1px}
+[role="listbox"]:focus .keyboard-cursor{outline:2px solid var(--accent);outline-offset:-2px}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.keyboard-help{max-height:90vh;overflow-y:auto}
+.shortcut-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px}
+.shortcut-table th,.shortcut-table td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--border)}
+.shortcut-table th{font-weight:600;white-space:nowrap;color:var(--accent)}
+.shortcut-note{font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px}

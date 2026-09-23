@@ -23,12 +23,8 @@ const S = {
     // Column sort state
     sortA: { col: 'name', dir: 1 },  // dir: 1=asc, -1=desc
     sortB: { col: 'name', dir: 1 },
-    // Shift-click anchor (files mode)
-    lastClickA: -1,
-    lastClickB: -1,
-    // Shift-click anchor (docker mode)
-    lastClickDockerA: -1,
-    lastClickDockerB: -1,
+    deleting: false,
+    connectionTokenA: 0, connectionTokenB: 0,
     // Dir size load token (cancels stale du results on navigation)
     panelTokenA: 0,
     panelTokenB: 0,
@@ -54,10 +50,8 @@ Desktop.events.on('ready', async () => {
         await setLang(e.target.value);
         // Re-render dynamic content that uses t()
         populateSelects();
-        if (S.filesA.length) renderList('A');
-        if (S.filesB.length) renderList('B');
-        if (S.panelModeA === 'docker' && S.dockerA.length) renderDockerList('A');
-        if (S.panelModeB === 'docker' && S.dockerB.length) renderDockerList('B');
+        renderPanelList('A'); renderPanelList('B');
+        bkRenderList(); bkRenderBkupList(); syncKeyboardTabs();
         updateSelInfo();
         if (!S.busy) setStatus(t('status.readyHint'));
     };
@@ -74,6 +68,8 @@ Desktop.events.on('ready', async () => {
 
     attachPanelHandlers('A');
     attachPanelHandlers('B');
+    attachBackupHandlers();
+    initKeyboardNavigation();
 
     // Header
     document.getElementById('btnAddServer').onclick = () => openModal(null);
@@ -103,7 +99,7 @@ Desktop.events.on('ready', async () => {
                 const sort = side === 'A' ? S.sortA : S.sortB;
                 if (sort.col === sortEl.dataset.col) sort.dir = -sort.dir;
                 else { sort.col = sortEl.dataset.col; sort.dir = 1; }
-                renderList(side);
+                renderPanelList(side);
                 updateSortHeader(side);
                 saveSortState();
             });
@@ -123,38 +119,19 @@ Desktop.events.on('ready', async () => {
     document.getElementById('btnDeleteB').onclick = () => deleteSelected('B');
 
     // Toolbar
-    document.getElementById('btnUpA').onclick = () => {
-        if (!S.srvA || S.panelModeA === 'docker') return;
-        S.pathA = parentPath(S.pathA);
-        document.getElementById('pathA').value = S.pathA;
-        loadPanel('A');
-        loadPanelDiskInfo('A');
-    };
-    document.getElementById('btnUpB').onclick = () => {
-        if (!S.srvB || S.panelModeB === 'docker') return;
-        S.pathB = parentPath(S.pathB);
-        document.getElementById('pathB').value = S.pathB;
-        loadPanel('B');
-        loadPanelDiskInfo('B');
-    };
-    document.getElementById('btnRefreshA').onclick = () => { loadPanel('A'); loadPanelDiskInfo('A'); };
-    document.getElementById('btnRefreshB').onclick = () => { loadPanel('B'); loadPanelDiskInfo('B'); };
-
-    // Path input: navigate on Enter
-    document.getElementById('pathA').onkeydown = e => {
-        if (e.key === 'Enter' && S.srvA && S.panelModeA === 'files') {
-            S.pathA = e.target.value.trim() || S.pathA;
-            loadPanel('A');
-            loadPanelDiskInfo('A');
-        }
-    };
-    document.getElementById('pathB').onkeydown = e => {
-        if (e.key === 'Enter' && S.srvB && S.panelModeB === 'files') {
-            S.pathB = e.target.value.trim() || S.pathB;
-            loadPanel('B');
-            loadPanelDiskInfo('B');
-        }
-    };
+    ['A', 'B'].forEach(side => {
+        document.getElementById('btnUp' + side).onclick = () => navigatePanel(side, parentPath(S['path' + side]));
+        document.getElementById('btnRefresh' + side).onclick = () => {
+            if (S.busy || S.deleting) return;
+            loadPanel(side); loadPanelDiskInfo(side);
+        };
+        const input = document.getElementById('path' + side);
+        input.onkeydown = event => {
+            if (event.key !== 'Enter' || event.isComposing || event.repeat) return;
+            navigatePanel(side, input.value.trim() || S['path' + side]);
+            ListNavigation.get('list' + side)?.focus();
+        };
+    });
 
     // Select-all
     document.getElementById('chkAllA').onchange = e => onSelectAll('A', e.target.checked);
@@ -175,9 +152,6 @@ Desktop.events.on('ready', async () => {
         if (e.target === document.getElementById('serverModal')) closeModal();
     };
 
-    // ESC closes modal
-    window.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-
     // ── Tab switching ──────────────────────────────────────────
     document.getElementById('tabFileTransfer').onclick = () => switchTab('file');
     document.getElementById('tabBackup').onclick = () => switchTab('backup');
@@ -187,8 +161,12 @@ Desktop.events.on('ready', async () => {
 
     // ── Backup tab server select ──────────────────────────────
     document.getElementById('selectBk').onchange = async () => {
+        const connection = ++BK.connectionToken;
+        ++BK.listToken; ++BK.backupListToken;
+        const current = () => BK.connectionToken === connection && BK.srv === srv;
         const id = parseInt(document.getElementById('selectBk').value);
-        BK.srv = S.servers.find(s => s.id === id) || null;
+        const srv = S.servers.find(s => s.id === id) || null;
+        BK.srv = srv;
         BK.items = [];
         BK.bkupItems = [];
         BK.ssdStates = [];
@@ -203,8 +181,10 @@ Desktop.events.on('ready', async () => {
             // 연결 확인: 서버가 꺼진 경우 선택을 초기 상태로 되돌림
             try {
                 const res = await execSSH(BK.srv, 'echo __CONN_OK__');
+                if (!current()) return;
                 if (!(res.stdOut || '').includes('__CONN_OK__')) throw new Error(res.stdErr || t('misc.noResponse'));
             } catch (e) {
+                if (!current()) return;
                 BK.srv = null;
                 document.getElementById('selectBk').value = '';
                 editBk.disabled = true;
@@ -215,6 +195,7 @@ Desktop.events.on('ready', async () => {
                 return;
             }
             await bkCheckAllMounts();
+            if (!current()) return;
             dotBk.className = 'conn-dot ok';
             setStatus(t('status.connected', { alias }));
             // Auto-load server list; backup list loads only if an SSD is mounted
@@ -232,6 +213,8 @@ Desktop.events.on('ready', async () => {
 
     // ── SSD select dropdown in backup tab ─────────────────────
     document.getElementById('bkSsdSelect').onchange = (e) => {
+        ++BK.backupListToken;
+        ListNavigation.get('bkBkupList')?.finishLoad();
         BK.activeSsdIdx = parseInt(e.target.value);
         BK.bkupItems = [];
         bkRenderBkupList();
@@ -302,6 +285,8 @@ function switchTab(tab) {
     document.getElementById('main').style.display = isFile ? '' : 'none';
     document.getElementById('backupPanel').style.display = isFile ? 'none' : '';
     document.getElementById('progressSection').style.display = isFile ? '' : 'none';
+    syncKeyboardTabs();
+    if (isFile) updateSelInfo(); else bkUpdateActionBtns();
     if (!isFile) {
         // Sync backup server select with server list
         populateBkSelect();

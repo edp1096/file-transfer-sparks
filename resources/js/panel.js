@@ -30,7 +30,7 @@ async function loadDirSizes(side, tok) {
     const paths = dirs.map(f => bq(joinPath(path, f.name))).join(' ');
     try {
         const res = await execSSH(srv, `du -sb ${paths} 2>/dev/null`);
-        if (tok !== (side === 'A' ? S.panelTokenA : S.panelTokenB)) return; // navigated away
+        if (tok !== S['panelToken' + side] || S['panelMode' + side] !== 'files' || S['srv' + side] !== srv || S['path' + side] !== path) return; // navigated away
         const sizeMap = {};
         for (const line of (res.stdOut || '').split('\n')) {
             const tab = line.indexOf('\t');
@@ -51,33 +51,31 @@ async function loadDirSizes(side, tok) {
 }
 
 async function loadPanel(side) {
-    const mode = side === 'A' ? S.panelModeA : S.panelModeB;
-    if (mode === 'docker') {
-        await loadDockerImages(side);
-        return;
-    }
-
-    const srv = side === 'A' ? S.srvA : S.srvB;
-    const path = side === 'A' ? S.pathA : S.pathB;
+    if (S['panelMode' + side] === 'docker') return loadDockerImages(side);
+    const srv = S['srv' + side], path = S['path' + side];
+    const token = ++S['panelToken' + side];
+    const current = () => token === S['panelToken' + side] && S['srv' + side] === srv && S['path' + side] === path && S['panelMode' + side] === 'files';
     const listEl = document.getElementById('list' + side);
-
+    const nav = ListNavigation.get('list' + side);
+    nav?.beginLoad();
+    S['files' + side] = [];
+    S['sel' + side].clear();
+    updateSelInfo();
     if (!srv || !path) {
-        listEl.innerHTML = '<div class="panel-state"><div class="state-icon">🖥</div><div class="state-msg">' + escHtml(t('panel.selectServer')) + '</div></div>';
-        return;
+        renderList(side); nav?.finishLoad(); return;
     }
-    if (side === 'A') { S.selA.clear(); S.lastClickA = -1; } else { S.selB.clear(); S.lastClickB = -1; }
-    document.getElementById('chkAll' + side).checked = false;
     listEl.innerHTML = '<div class="panel-state"><div class="state-icon">⟳</div><div class="state-msg">' + escHtml(t('panel.loading')) + '</div></div>';
-
     try {
         const files = await listRemote(srv, path);
-        if (side === 'A') S.filesA = files; else S.filesB = files;
+        if (!current()) return;
+        S['files' + side] = files;
         renderList(side);
-        updateSelInfo();
-        const tok = side === 'A' ? ++S.panelTokenA : ++S.panelTokenB;
-        loadDirSizes(side, tok); // fire-and-forget
+        loadDirSizes(side, token);
     } catch (e) {
+        if (!current()) return;
         listEl.innerHTML = `<div class="panel-state err"><div class="state-icon">⚠</div><div class="state-msg">${escHtml(e.message || String(e))}</div></div>`;
+    } finally {
+        if (current()) { nav?.finishLoad(); updateSelInfo(); }
     }
 }
 
@@ -109,7 +107,8 @@ function renderList(side) {
     const listEl = document.getElementById('list' + side);
 
     if (!files.length) {
-        listEl.innerHTML = '<div class="panel-state"><div class="state-msg" style="color:var(--text3)">' + escHtml(t('panel.emptyDir')) + '</div></div>';
+        listEl.innerHTML = '<div class="panel-state"><div class="state-msg" style="color:var(--text3)">' + (S['srv' + side] ? escHtml(t('panel.emptyDir')) : '<div class="state-icon">🖥</div>' + escHtml(t('panel.selectServer'))) + '</div></div>';
+        ListNavigation.get('list' + side)?.sync();
         return;
     }
     const sorted = sortFiles(files, sort);
@@ -123,53 +122,38 @@ function renderList(side) {
       <div class="file-mtime-cell">${fmtMtime(f.mtime)}</div>
     </div>`;
     }).join('');
+    ListNavigation.get('list' + side)?.sync();
+}
+
+function renderPanelList(side) {
+    if (S['panelMode' + side] === 'docker') renderDockerList(side);
+    else renderList(side);
+}
+
+function navigatePanel(side, path) {
+    if (!S['srv' + side] || S['panelMode' + side] !== 'files' || S.busy || S.deleting || ListNavigation.get('list' + side)?.state.loading) return;
+    if (path === S['path' + side]) return;
+    S['path' + side] = path;
+    document.getElementById('path' + side).value = path;
+    loadPanel(side);
+    loadPanelDiskInfo(side);
 }
 
 function attachPanelHandlers(side) {
-    const listEl = document.getElementById('list' + side);
-
-    // Click: toggle / shift-range select
-    listEl.addEventListener('click', e => {
-        const row = e.target.closest('.file-row');
-        if (!row) return;
-        const name = row.dataset.name;
-        const idx = parseInt(row.dataset.idx);
-        const sel = side === 'A' ? S.selA : S.selB;
-        const chk = row.querySelector('input[type="checkbox"]');
-        const lastClick = side === 'A' ? S.lastClickA : S.lastClickB;
-
-        if (e.shiftKey && lastClick >= 0) {
-            // Range select from anchor to current
-            const files = side === 'A' ? S.filesA : S.filesB;
-            const sort = side === 'A' ? S.sortA : S.sortB;
-            const sorted = sortFiles(files, sort);
-            const lo = Math.min(idx, lastClick), hi = Math.max(idx, lastClick);
-            for (let i = lo; i <= hi; i++) sel.add(sorted[i].name);
-            renderList(side);
-        } else {
-            if (side === 'A') S.lastClickA = idx; else S.lastClickB = idx;
-            if (e.target === chk) {
-                if (chk.checked) sel.add(name); else sel.delete(name);
-            } else {
-                if (sel.has(name)) { sel.delete(name); chk.checked = false; }
-                else { sel.add(name); chk.checked = true; }
-            }
-            if (sel.has(name)) row.classList.add('selected'); else row.classList.remove('selected');
-        }
-        updateSelInfo();
-    });
-
-    // Double-click: navigate into directory (files mode only)
-    listEl.addEventListener('dblclick', e => {
-        const row = e.target.closest('.file-row');
-        if (!row || row.dataset.isdir !== '1') return;
-        const mode = side === 'A' ? S.panelModeA : S.panelModeB;
-        if (mode !== 'files') return;
-        const newPath = joinPath(side === 'A' ? S.pathA : S.pathB, row.dataset.name);
-        if (side === 'A') S.pathA = newPath; else S.pathB = newPath;
-        document.getElementById('path' + side).value = newPath;
-        loadPanel(side);
-        loadPanelDiskInfo(side);
+    ListNavigation.attach('list' + side, {
+        context: () => JSON.stringify([S['srv' + side]?.id, S['srv' + side]?.sshHost, S['panelMode' + side], S['panelMode' + side] === 'files' ? S['path' + side] : null]),
+        selection: () => S['sel' + side],
+        setSelection: selection => { S['sel' + side] = selection; },
+        locked: () => S.busy || S.deleting,
+        changed: updateSelInfo,
+        label: () => t('keyboard.files', { side }),
+        all: 'chkAll' + side, left: 'listA', right: 'listB',
+        open: name => {
+            const file = S['files' + side].find(file => file.name === name);
+            if (file?.isDir && S['panelMode' + side] === 'files') navigatePanel(side, joinPath(S['path' + side], name));
+        },
+        parent: () => navigatePanel(side, parentPath(S['path' + side])),
+        remove: () => deleteSelected(side),
     });
 }
 
@@ -178,7 +162,7 @@ function attachPanelHandlers(side) {
 // ============================================================
 function toggleDockerMode(side) {
     const srv = side === 'A' ? S.srvA : S.srvB;
-    if (!srv) return;
+    if (!srv || S.busy || S.deleting) return;
 
     const currentMode = side === 'A' ? S.panelModeA : S.panelModeB;
     const newMode = currentMode === 'docker' ? 'files' : 'docker';
@@ -207,31 +191,27 @@ function toggleDockerMode(side) {
 }
 
 async function loadDockerImages(side) {
-    const srv = side === 'A' ? S.srvA : S.srvB;
-    const listEl = document.getElementById('list' + side);
-
-    if (!srv) {
-        listEl.innerHTML = '<div class="panel-state"><div class="state-icon">🖥</div><div class="state-msg">' + escHtml(t('panel.selectServer')) + '</div></div>';
-        return;
-    }
-
+    const srv = S['srv' + side], token = ++S['panelToken' + side];
+    const current = () => token === S['panelToken' + side] && S['srv' + side] === srv && S['panelMode' + side] === 'docker';
+    const listEl = document.getElementById('list' + side), nav = ListNavigation.get('list' + side);
+    nav?.beginLoad();
+    S['docker' + side] = []; S['sel' + side].clear(); updateSelInfo();
+    if (!srv) { renderDockerList(side); nav?.finishLoad(); return; }
     listEl.innerHTML = '<div class="panel-state"><div class="state-icon">⟳</div><div class="state-msg">' + escHtml(t('panel.loading')) + '</div></div>';
-    if (side === 'A') S.lastClickDockerA = -1; else S.lastClickDockerB = -1;
-
     try {
-        const res = await execSSH(srv,
-            `docker images --format "{{.Repository}}:{{.Tag}}\\t{{.Size}}" 2>&1`);
+        const res = await execSSH(srv, `docker images --format "{{.Repository}}:{{.Tag}}\\t{{.Size}}" 2>&1`);
+        if (!current()) return;
         const out = (res.stdOut || '').trim();
-        const images = out ? out.split('\n').filter(Boolean).map(line => {
+        S['docker' + side] = out ? out.split('\n').filter(Boolean).map(line => {
             const parts = line.split('\t');
             return { name: parts[0].trim(), meta: parts[1] ? parts[1].trim() : '' };
         }) : [];
-
-        if (side === 'A') S.dockerA = images; else S.dockerB = images;
         renderDockerList(side);
-        updateSelInfo();
     } catch (e) {
+        if (!current()) return;
         listEl.innerHTML = `<div class="panel-state err"><div class="state-icon">⚠</div><div class="state-msg">${escHtml(e.message || String(e))}</div></div>`;
+    } finally {
+        if (current()) { nav?.finishLoad(); updateSelInfo(); }
     }
 }
 
@@ -241,7 +221,8 @@ function renderDockerList(side) {
     const listEl = document.getElementById('list' + side);
 
     if (!images.length) {
-        listEl.innerHTML = '<div class="panel-state"><div class="state-msg" style="color:var(--text3)">' + escHtml(t('panel.emptyDir')) + '</div></div>';
+        listEl.innerHTML = '<div class="panel-state"><div class="state-msg" style="color:var(--text3)">' + (S['srv' + side] ? escHtml(t('panel.emptyDir')) : '<div class="state-icon">🖥</div>' + escHtml(t('panel.selectServer'))) + '</div></div>';
+        ListNavigation.get('list' + side)?.sync();
         return;
     }
 
@@ -254,38 +235,20 @@ function renderDockerList(side) {
         </div>`;
     }).join('');
 
-    listEl.querySelectorAll('.bk-row').forEach(row => {
-        row.addEventListener('click', e => {
-            const idx = parseInt(row.dataset.dockerIdx);
-            const name = row.dataset.name;
-            const sel = side === 'A' ? S.selA : S.selB;
-            const chk = row.querySelector('input[type="checkbox"]');
-            const lastClick = side === 'A' ? S.lastClickDockerA : S.lastClickDockerB;
-
-            if (e.shiftKey && lastClick >= 0) {
-                const imgs = side === 'A' ? S.dockerA : S.dockerB;
-                const lo = Math.min(idx, lastClick), hi = Math.max(idx, lastClick);
-                for (let i = lo; i <= hi; i++) sel.add(imgs[i].name);
-                renderDockerList(side);
-            } else {
-                if (side === 'A') S.lastClickDockerA = idx; else S.lastClickDockerB = idx;
-                if (e.target === chk) {
-                    if (chk.checked) sel.add(name); else sel.delete(name);
-                } else {
-                    if (sel.has(name)) { sel.delete(name); chk.checked = false; }
-                    else { sel.add(name); chk.checked = true; }
-                }
-                if (sel.has(name)) row.classList.add('selected'); else row.classList.remove('selected');
-            }
-            updateSelInfo();
-        });
-    });
+    ListNavigation.get('list' + side)?.sync();
 }
 
 // ============================================================
 // DELETE
 // ============================================================
 async function deleteSelected(side) {
+    if (S.busy || S.deleting || ListNavigation.get('list' + side)?.state.loading) return;
+    S.deleting = true; updateSelInfo();
+    try { await deleteSelectedImpl(side); }
+    finally { S.deleting = false; updateSelInfo(); }
+}
+
+async function deleteSelectedImpl(side) {
     const srv = side === 'A' ? S.srvA : S.srvB;
     const path = side === 'A' ? S.pathA : S.pathB;
     const mode = side === 'A' ? S.panelModeA : S.panelModeB;
@@ -341,21 +304,7 @@ async function deleteSelected(side) {
 // SELECT ALL
 // ============================================================
 function onSelectAll(side, checked) {
-    const mode = side === 'A' ? S.panelModeA : S.panelModeB;
-    if (mode === 'docker') {
-        const images = side === 'A' ? S.dockerA : S.dockerB;
-        const sel = side === 'A' ? S.selA : S.selB;
-        sel.clear();
-        if (checked) images.forEach(img => sel.add(img.name));
-        renderDockerList(side);
-    } else {
-        const files = side === 'A' ? S.filesA : S.filesB;
-        const sel = side === 'A' ? S.selA : S.selB;
-        sel.clear();
-        if (checked) files.forEach(f => sel.add(f.name));
-        renderList(side);
-    }
-    updateSelInfo();
+    ListNavigation.get('list' + side)?.all(checked);
 }
 
 // ============================================================
